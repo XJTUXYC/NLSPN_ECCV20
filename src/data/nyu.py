@@ -108,8 +108,8 @@ class NYU(BaseDataset):
                 rgb = TF.hflip(rgb)
                 dep = TF.hflip(dep)
 
-            rgb = TF.rotate(rgb, angle=degree, resample=Image.NEAREST)
-            dep = TF.rotate(dep, angle=degree, resample=Image.NEAREST)
+            rgb = TF.rotate(rgb, angle=degree, interpolation=Image.NEAREST)
+            dep = TF.rotate(dep, angle=degree, interpolation=Image.NEAREST)
 
             t_rgb = T.Compose([
                 T.Resize(scale),
