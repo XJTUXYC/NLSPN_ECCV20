@@ -11,6 +11,7 @@
             "program": "~/NLSPN_ECCV20/src/main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
+            "cwd": "${workspaceFolder}/src",
             "args": [
                 "--dir_data", "~/datasets/nyudepthv2/",
                 "--data_name", "NYU", 
@@ -20,7 +21,7 @@
                 "--gpus", "0",
                 "--loss", "1.0*L1+1.0*L2",
                 "--epochs", "20",
-                "--batch_size", "4", 
+                "--batch_size", "2", 
                 "--max_depth", "10.0",
                 "--num_sample", "500",
                 "--save", "nyu_result"

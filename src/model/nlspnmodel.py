@@ -110,39 +110,39 @@ class NLSPN(nn.Module):
         else:
             raise NotImplementedError
 
-        # Apply confidence
-        # TODO : Need more efficient way
-        if self.args.conf_prop:
-            list_conf = []
-            offset_each = torch.chunk(offset, self.num + 1, dim=1)
+        # # Apply confidence
+        # # TODO : Need more efficient way
+        # if self.args.conf_prop:
+        #     list_conf = []
+        #     offset_each = torch.chunk(offset, self.num + 1, dim=1)
 
-            modulation_dummy = torch.ones((B, 1, H, W)).type_as(offset).detach()
+        #     modulation_dummy = torch.ones((B, 1, H, W)).type_as(offset).detach()
 
-            for idx_off in range(0, self.num + 1):
-                ww = idx_off % self.k_f
-                hh = idx_off // self.k_f
+        #     for idx_off in range(0, self.num + 1):
+        #         ww = idx_off % self.k_f
+        #         hh = idx_off // self.k_f
 
-                if ww == (self.k_f - 1) / 2 and hh == (self.k_f - 1) / 2:
-                    continue
+        #         if ww == (self.k_f - 1) / 2 and hh == (self.k_f - 1) / 2:
+        #             continue
 
-                offset_tmp = offset_each[idx_off].detach()
+        #         offset_tmp = offset_each[idx_off].detach()
 
-                # NOTE : Use --legacy option ONLY for the pre-trained models
-                # for ECCV20 results.
-                if self.args.legacy:
-                    offset_tmp[:, 0, :, :] = \
-                        offset_tmp[:, 0, :, :] + hh - (self.k_f - 1) / 2
-                    offset_tmp[:, 1, :, :] = \
-                        offset_tmp[:, 1, :, :] + ww - (self.k_f - 1) / 2
+        #         # NOTE : Use --legacy option ONLY for the pre-trained models
+        #         # for ECCV20 results.
+        #         if self.args.legacy:
+        #             offset_tmp[:, 0, :, :] = \
+        #                 offset_tmp[:, 0, :, :] + hh - (self.k_f - 1) / 2
+        #             offset_tmp[:, 1, :, :] = \
+        #                 offset_tmp[:, 1, :, :] + ww - (self.k_f - 1) / 2
 
-                conf_tmp = ModulatedDeformConvFunction.apply(
-                    confidence, offset_tmp, modulation_dummy, self.w_conf,
-                    self.b, self.stride, 0, self.dilation, self.groups,
-                    self.deformable_groups, self.im2col_step)
-                list_conf.append(conf_tmp)
+        #         conf_tmp = ModulatedDeformConvFunction.apply(
+        #             confidence, offset_tmp, modulation_dummy, self.w_conf,
+        #             self.b, self.stride, 0, self.dilation, self.groups,
+        #             self.deformable_groups, self.im2col_step)
+        #         list_conf.append(conf_tmp)
 
-            conf_aff = torch.cat(list_conf, dim=1)
-            aff = aff * conf_aff.contiguous()
+        #     conf_aff = torch.cat(list_conf, dim=1)
+        #     aff = aff * conf_aff.contiguous()
 
         # Affinity normalization
         aff_abs = torch.abs(aff)
@@ -200,7 +200,8 @@ class NLSPN(nn.Module):
                 feat_result = (1.0 - mask_fix) * feat_result \
                               + mask_fix * feat_fix
 
-            feat_result = self._propagate_once(feat_result, offset, aff)
+            # feat_result = self._propagate_once(feat_result, offset, aff)
+            feat_result = self._propagate_once(feat_result*confidence, offset, aff)
 
             list_feat.append(feat_result)
 
