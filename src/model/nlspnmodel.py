@@ -191,7 +191,7 @@ class NLSPN(nn.Module):
             mask_fix = (mask_fix > 0.0).type_as(feat_fix)
             
             if confidence != None:
-                confidence = (1.0 - mask_fix) * confidence + mask_fix * torch.ones_like(confidence)
+                confidence = (1.0 - mask_fix) * confidence + mask_fix
 
         feat_result = feat_init
 
