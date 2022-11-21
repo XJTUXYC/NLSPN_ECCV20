@@ -1,0 +1,41 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Train",
+            "type": "python",
+            "request": "launch",
+            "program": "~/NLSPN_ECCV20/src/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}/src",
+            "args": [
+                "--dir_data", "~/datasets/nyudepthv2/",
+                "--data_name", "NYU", 
+                "--split_json", "../data_json/nyu.json",
+                "--patch_height", "228",
+                "--patch_width", "304",
+                "--gpus", "0",
+                "--loss", "1.0*L1+1.0*L2",
+                "--epochs", "20",
+                "--batch_size", "2", 
+                "--max_depth", "10.0",
+                "--num_sample", "500",
+                "--save", "nyu_result",
+                "--preserve_input",
+                "--no_conf"
+            ]
+        },
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

@@ -5,4 +5,3 @@ experiments/
 src/model/deformconv/build/
 src/model/deformconv/dist/
 src/model/deformconv/DCN.egg-info/
-.vscode/
