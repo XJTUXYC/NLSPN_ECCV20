@@ -24,7 +24,8 @@
                 "--batch_size", "2", 
                 "--max_depth", "10.0",
                 "--num_sample", "500",
-                "--save", "nyu_result"
+                "--save", "nyu_result",
+                "--no_conf"
             ]
         },
         {

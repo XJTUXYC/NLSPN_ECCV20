@@ -200,8 +200,10 @@ class NLSPN(nn.Module):
                 feat_result = (1.0 - mask_fix) * feat_result \
                               + mask_fix * feat_fix
 
-            # feat_result = self._propagate_once(feat_result, offset, aff)
-            feat_result = self._propagate_once(feat_result*confidence, offset, aff)
+            if confidence == None:
+                feat_result = self._propagate_once(feat_result, offset, aff)
+            else:
+                feat_result = self._propagate_once(feat_result*confidence, offset, aff)
 
             list_feat.append(feat_result)
 
