@@ -189,6 +189,9 @@ class NLSPN(nn.Module):
             assert feat_init.shape == feat_fix.shape
             mask_fix = torch.sum(feat_fix > 0.0, dim=1, keepdim=True).detach()
             mask_fix = (mask_fix > 0.0).type_as(feat_fix)
+            
+            if confidence != None:
+                confidence = (1.0 - mask_fix) * confidence + mask_fix * torch.ones_like(confidence)
 
         feat_result = feat_init
 
@@ -200,10 +203,10 @@ class NLSPN(nn.Module):
                 feat_result = (1.0 - mask_fix) * feat_result \
                               + mask_fix * feat_fix
 
-            if confidence == None:
-                feat_result = self._propagate_once(feat_result, offset, aff)
-            else:
+            if confidence != None:
                 feat_result = self._propagate_once(feat_result*confidence, offset, aff)
+            else:
+                feat_result = self._propagate_once(feat_result, offset, aff)
 
             list_feat.append(feat_result)
 
