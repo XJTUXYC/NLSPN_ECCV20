@@ -248,6 +248,32 @@ parser.add_argument('--save_result_only',
                     default=False,
                     help='save result images only with submission format')
 
+# GRU
+parser.add_argument('--GRU_hidden_dim',
+                    type=int,
+                    default=8,
+                    help="GRU's hidden dim")
+parser.add_argument('--GRU_input_dim',
+                    type=int,
+                    default=1,
+                    help="GRU's input dim")
+parser.add_argument('--use_GRU',
+                    action='store_true',
+                    default=False,
+                    help="use GRU")
+parser.add_argument('--zero_init_GRU',
+                    action='store_true',
+                    default=False,
+                    help="zero init GRU")
+parser.add_argument('--clamp_every_time',
+                    action='store_true',
+                    default=False,
+                    help="clamp every time")
+parser.add_argument('--encode_h_x',
+                    action='store_true',
+                    default=False,
+                    help="encode h and x")
+
 
 args = parser.parse_args()
 

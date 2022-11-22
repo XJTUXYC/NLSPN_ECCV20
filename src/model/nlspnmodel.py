@@ -84,6 +84,8 @@ class NLSPN(nn.Module):
         self.groups = self.ch_f
         self.deformable_groups = 1
         self.im2col_step = 64
+        
+        self.GRU = ConvGRU(args)
 
     def _get_offset_affinity(self, guidance, confidence=None, rgb=None):
         B, _, H, W = guidance.shape
@@ -98,15 +100,20 @@ class NLSPN(nn.Module):
             list_offset.insert(self.idx_ref,
                                torch.zeros((B, 1, 2, H, W)).type_as(offset))
             offset = torch.cat(list_offset, dim=1).view(B, -1, H, W)
+        else:
+            raise NotImplementedError
+        
+        aff = self._affinity_normalization(aff)
 
-            if self.affinity in ['AS', 'ASS']:
-                pass
-            elif self.affinity == 'TC':
-                aff = torch.tanh(aff) / self.aff_scale_const
-            elif self.affinity == 'TGASS':
-                aff = torch.tanh(aff) / (self.aff_scale_const + 1e-8)
-            else:
-                raise NotImplementedError
+        return offset, aff
+    
+    def _affinity_normalization(self, aff):
+        if self.affinity in ['AS', 'ASS']:
+            pass
+        elif self.affinity == 'TC':
+            aff = torch.tanh(aff) / self.aff_scale_const
+        elif self.affinity == 'TGASS':
+            aff = torch.tanh(aff) / (self.aff_scale_const + 1e-8)
         else:
             raise NotImplementedError
 
@@ -160,9 +167,9 @@ class NLSPN(nn.Module):
         list_aff = list(torch.chunk(aff, self.num, dim=1))
         list_aff.insert(self.idx_ref, aff_ref)
         aff = torch.cat(list_aff, dim=1)
-
-        return offset, aff
-
+        
+        return aff
+    
     def _propagate_once(self, feat, offset, aff):
         feat = ModulatedDeformConvFunction.apply(
             feat, offset, aff, self.w, self.b, self.stride, self.padding,
@@ -170,6 +177,9 @@ class NLSPN(nn.Module):
         )
 
         return feat
+    
+    def _get_feature(self, aff, depth):
+        pass
 
     def forward(self, feat_init, guidance, confidence=None, feat_fix=None,
                 rgb=None):
@@ -190,7 +200,7 @@ class NLSPN(nn.Module):
             mask_fix = torch.sum(feat_fix > 0.0, dim=1, keepdim=True).detach()
             mask_fix = (mask_fix > 0.0).type_as(feat_fix)
             
-            if confidence != None:
+            if confidence is not None:
                 confidence = (1.0 - mask_fix) * confidence + mask_fix
 
         feat_result = feat_init
@@ -199,16 +209,34 @@ class NLSPN(nn.Module):
 
         for k in range(1, self.prop_time + 1):
             # Input preservation for each iteration
-            if self.args.preserve_input:
+            if k==1 and self.args.preserve_input:
                 feat_result = (1.0 - mask_fix) * feat_result \
                               + mask_fix * feat_fix
 
-            if confidence != None:
+            if confidence is not None:
                 feat_result = self._propagate_once(feat_result*confidence, offset, aff)
             else:
                 feat_result = self._propagate_once(feat_result, offset, aff)
 
+            if self.args.preserve_input:
+                feat_result = (1.0 - mask_fix) * feat_result \
+                              + mask_fix * feat_fix
+            
+            if self.args.clamp_every_time:                   
+                feat_result = torch.clamp(feat_result, min=0)
+                              
             list_feat.append(feat_result)
+            
+            if k<self.prop_time and self.args.use_GRU:
+                list_aff = list(torch.chunk(aff, self.num+1, dim=1))
+                list_aff.pop(self.idx_ref)
+                aff = torch.cat(list_aff, dim=1)
+                
+                if self.args.encode_h_x:
+                    aff, feat_result = self._get_feature(aff, feat_result)
+                
+                aff = self.GRU(aff, feat_result)
+                aff = self._affinity_normalization(aff)
 
         return feat_result, list_feat, offset, aff, self.aff_scale_const.data
 
@@ -362,11 +390,38 @@ class NLSPNModel(nn.Module):
         y, y_inter, offset, aff, aff_const = \
             self.prop_layer(pred_init, guide, confidence, dep, rgb)
 
-        # Remove negative depth
-        y = torch.clamp(y, min=0)
+        if not self.args.clamp_every_time:
+            # Remove negative depth
+            y = torch.clamp(y, min=0)
 
         output = {'pred': y, 'pred_init': pred_init, 'pred_inter': y_inter,
                   'guidance': guide, 'offset': offset, 'aff': aff,
                   'gamma': aff_const, 'confidence': confidence}
 
         return output
+    
+    
+class ConvGRU(nn.Module):
+    def __init__(self, args):
+        super(ConvGRU, self).__init__()
+        hidden_dim = args.GRU_hidden_dim
+        input_dim = args.GRU_input_dim
+        zero_init_GRU = args.zero_init_GRU
+        
+        self.convz = nn.Conv2d(hidden_dim+input_dim, hidden_dim, 3, padding=1)
+        self.convr = nn.Conv2d(hidden_dim+input_dim, hidden_dim, 3, padding=1)
+        
+        self.convq = nn.Conv2d(hidden_dim+input_dim, hidden_dim, 3, padding=1)
+        if zero_init_GRU:
+            self.convq.weight.data.zero_()
+            self.convq.bias.data.zero_()
+
+    def forward(self, h, x):
+        hx = torch.cat([h, x], dim=1)
+
+        z = torch.sigmoid(self.convz(hx))
+        r = torch.sigmoid(self.convr(hx))
+        q = torch.tanh(self.convq(torch.cat([r*h, x], dim=1)))
+
+        h = (1-z) * h + z * q
+        return h
