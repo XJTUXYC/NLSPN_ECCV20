@@ -102,7 +102,7 @@ parser.add_argument('--prop_kernel',
                     help='propagation kernel size')
 parser.add_argument('--preserve_input',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help='preserve input points by replacement')
 parser.add_argument('--affinity',
                     type=str,
@@ -236,7 +236,7 @@ parser.add_argument('--save',
                     help='file name to save')
 parser.add_argument('--save_full',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help='save optimizer, scheduler and amp in '
                          'checkpoints (large memory)')
 parser.add_argument('--save_image',
