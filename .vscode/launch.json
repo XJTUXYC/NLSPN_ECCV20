@@ -30,7 +30,6 @@
                 "--use_GRU",
                 "--always_clamp",
                 "--zero_init_GRU",
-                "--mixed_precision",
             ]
         },
         {

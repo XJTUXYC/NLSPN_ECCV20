@@ -18,20 +18,7 @@ from .modulated_deform_conv_func import ModulatedDeformConvFunction
 import torch
 import torch.nn as nn
 
-
-try:
-    autocast = torch.cuda.amp.autocast
-except:
-    # dummy autocast for PyTorch < 1.6
-    class autocast:
-        def __init__(self, enabled):
-            pass
-        def __enter__(self):
-            pass
-        def __exit__(self, *args):
-            pass
         
-
 class NLSPN(nn.Module):
     def __init__(self, args, ch_g, ch_f, k_g, k_f):
         super(NLSPN, self).__init__()
@@ -127,7 +114,7 @@ class NLSPN(nn.Module):
         elif self.affinity == 'TC':
             aff = torch.tanh(aff) / self.aff_scale_const
         elif self.affinity == 'TGASS':
-            aff = torch.tanh(aff) / (self.aff_scale_const + 1e-7)
+            aff = torch.tanh(aff) / (self.aff_scale_const + 1e-8)
         else:
             raise NotImplementedError
 
@@ -373,43 +360,42 @@ class NLSPNModel(nn.Module):
         rgb = sample['rgb']
         dep = sample['dep']
 
-        with autocast(enabled=self.args.mixed_precision):
-            # Encoding
-            fe1_rgb = self.conv1_rgb(rgb)
-            fe1_dep = self.conv1_dep(dep)
+        # Encoding
+        fe1_rgb = self.conv1_rgb(rgb)
+        fe1_dep = self.conv1_dep(dep)
 
-            fe1 = torch.cat((fe1_rgb, fe1_dep), dim=1)
+        fe1 = torch.cat((fe1_rgb, fe1_dep), dim=1)
 
-            fe2 = self.conv2(fe1)
-            fe3 = self.conv3(fe2)
-            fe4 = self.conv4(fe3)
-            fe5 = self.conv5(fe4)
-            fe6 = self.conv6(fe5)
+        fe2 = self.conv2(fe1)
+        fe3 = self.conv3(fe2)
+        fe4 = self.conv4(fe3)
+        fe5 = self.conv5(fe4)
+        fe6 = self.conv6(fe5)
 
-            # Shared Decoding
-            fd5 = self.dec5(fe6)
-            fd4 = self.dec4(self._concat(fd5, fe5))
-            fd3 = self.dec3(self._concat(fd4, fe4))
-            fd2 = self.dec2(self._concat(fd3, fe3))
+        # Shared Decoding
+        fd5 = self.dec5(fe6)
+        fd4 = self.dec4(self._concat(fd5, fe5))
+        fd3 = self.dec3(self._concat(fd4, fe4))
+        fd2 = self.dec2(self._concat(fd3, fe3))
 
-            # Init Depth Decoding
-            id_fd1 = self.id_dec1(self._concat(fd2, fe2))
-            pred_init = self.id_dec0(self._concat(id_fd1, fe1))
+        # Init Depth Decoding
+        id_fd1 = self.id_dec1(self._concat(fd2, fe2))
+        pred_init = self.id_dec0(self._concat(id_fd1, fe1))
 
-            # Guidance Decoding
-            gd_fd1 = self.gd_dec1(self._concat(fd2, fe2))
-            guide = self.gd_dec0(self._concat(gd_fd1, fe1))
+        # Guidance Decoding
+        gd_fd1 = self.gd_dec1(self._concat(fd2, fe2))
+        guide = self.gd_dec0(self._concat(gd_fd1, fe1))
 
-            if self.args.conf_prop:
-                # Confidence Decoding
-                cf_fd1 = self.cf_dec1(self._concat(fd2, fe2))
-                confidence = self.cf_dec0(self._concat(cf_fd1, fe1))
-            else:
-                confidence = None
+        if self.args.conf_prop:
+            # Confidence Decoding
+            cf_fd1 = self.cf_dec1(self._concat(fd2, fe2))
+            confidence = self.cf_dec0(self._concat(cf_fd1, fe1))
+        else:
+            confidence = None
 
-            # Diffusion
-            y, y_inter, offset, aff, aff_const = \
-                self.prop_layer(pred_init, guide, confidence, dep, rgb)
+        # Diffusion
+        y, y_inter, offset, aff, aff_const = \
+            self.prop_layer(pred_init, guide, confidence, dep, rgb)
             
         # Remove negative depth
         if not self.args.always_clamp:

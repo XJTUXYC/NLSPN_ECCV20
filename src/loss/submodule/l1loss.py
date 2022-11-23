@@ -35,7 +35,7 @@ class L1Loss(nn.Module):
         d = torch.sum(d, dim=[1, 2, 3])
         num_valid = torch.sum(mask, dim=[1, 2, 3])
 
-        loss = d / (num_valid + 1e-7)
+        loss = d / (num_valid + 1e-8)
 
         loss = loss.sum()
 

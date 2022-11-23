@@ -214,7 +214,7 @@ parser.add_argument('--betas',
                     help='ADAM beta')
 parser.add_argument('--epsilon',
                     type=float,
-                    default=1e-7,
+                    default=1e-8,
                     help='ADAM epsilon for numerical stability')
 parser.add_argument('--weight_decay',
                     type=float,
@@ -269,10 +269,6 @@ parser.add_argument('--zero_init_GRU',
                     action='store_true',
                     default=False,
                     help="zero init GRU")
-parser.add_argument('--mixed_precision',
-                    action='store_true',
-                    default=False,
-                    help="use mixed precision")
 
 
 args = parser.parse_args()
