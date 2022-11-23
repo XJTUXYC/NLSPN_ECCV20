@@ -255,24 +255,12 @@ parser.add_argument('--GRU_hidden_dim',
                     help="GRU's hidden dim")
 parser.add_argument('--GRU_input_dim',
                     type=int,
-                    default=1,
+                    default=16,
                     help="GRU's input dim")
 parser.add_argument('--use_GRU',
                     action='store_true',
                     default=False,
                     help="use GRU")
-parser.add_argument('--zero_init_GRU',
-                    action='store_true',
-                    default=False,
-                    help="zero init GRU")
-parser.add_argument('--clamp_every_time',
-                    action='store_true',
-                    default=False,
-                    help="clamp every time")
-parser.add_argument('--encode_h_x',
-                    action='store_true',
-                    default=False,
-                    help="encode h and x")
 
 
 args = parser.parse_args()

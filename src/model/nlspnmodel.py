@@ -86,6 +86,7 @@ class NLSPN(nn.Module):
         self.im2col_step = 64
         
         self.GRU = ConvGRU(args)
+        self.encode_depth = conv_bn_relu(1, args.GRU_input_dim, kernel=3, stride=1, padding=1, bn=False)
 
     def _get_offset_affinity(self, guidance, confidence=None, rgb=None):
         B, _, H, W = guidance.shape
@@ -179,7 +180,9 @@ class NLSPN(nn.Module):
         return feat
     
     def _get_feature(self, aff, depth):
-        pass
+        depth_feature = self.encode_depth(depth)
+        
+        return depth_feature
 
     def forward(self, feat_init, guidance, confidence=None, feat_fix=None,
                 rgb=None):
@@ -221,9 +224,9 @@ class NLSPN(nn.Module):
             if self.args.preserve_input:
                 feat_result = (1.0 - mask_fix) * feat_result \
                               + mask_fix * feat_fix
-            
-            if self.args.clamp_every_time:                   
-                feat_result = torch.clamp(feat_result, min=0)
+                            
+            # Remove negative depth
+            feat_result = torch.clamp(feat_result, min=0)
                               
             list_feat.append(feat_result)
             
@@ -232,10 +235,9 @@ class NLSPN(nn.Module):
                 list_aff.pop(self.idx_ref)
                 aff = torch.cat(list_aff, dim=1)
                 
-                if self.args.encode_h_x:
-                    aff, feat_result = self._get_feature(aff, feat_result)
+                depth_feature = self._get_feature(aff, feat_result)
                 
-                aff = self.GRU(aff, feat_result)
+                aff = self.GRU(aff, depth_feature)
                 aff = self._affinity_normalization(aff)
 
         return feat_result, list_feat, offset, aff, self.aff_scale_const.data
@@ -390,10 +392,6 @@ class NLSPNModel(nn.Module):
         y, y_inter, offset, aff, aff_const = \
             self.prop_layer(pred_init, guide, confidence, dep, rgb)
 
-        if not self.args.clamp_every_time:
-            # Remove negative depth
-            y = torch.clamp(y, min=0)
-
         output = {'pred': y, 'pred_init': pred_init, 'pred_inter': y_inter,
                   'guidance': guide, 'offset': offset, 'aff': aff,
                   'gamma': aff_const, 'confidence': confidence}
@@ -406,15 +404,13 @@ class ConvGRU(nn.Module):
         super(ConvGRU, self).__init__()
         hidden_dim = args.GRU_hidden_dim
         input_dim = args.GRU_input_dim
-        zero_init_GRU = args.zero_init_GRU
         
         self.convz = nn.Conv2d(hidden_dim+input_dim, hidden_dim, 3, padding=1)
         self.convr = nn.Conv2d(hidden_dim+input_dim, hidden_dim, 3, padding=1)
         
         self.convq = nn.Conv2d(hidden_dim+input_dim, hidden_dim, 3, padding=1)
-        if zero_init_GRU:
-            self.convq.weight.data.zero_()
-            self.convq.bias.data.zero_()
+        self.convq.weight.data.zero_()
+        self.convq.bias.data.zero_()
 
     def forward(self, h, x):
         hx = torch.cat([h, x], dim=1)

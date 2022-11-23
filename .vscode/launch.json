@@ -26,13 +26,9 @@
                 "--num_sample", "500",
                 "--save", "nyu_result",
                 // "--prop_time", "18",
-                "--affinity", "AS",
+                "--GRU_input_dim", "16",
                 "--preserve_input",
-                "--no_conf",
                 "--use_GRU",
-                // "--zero_init_GRU",
-                "--clamp_every_time",
-                // "--encode_h_x",
             ]
         },
         {
