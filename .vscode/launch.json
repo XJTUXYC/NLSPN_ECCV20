@@ -29,7 +29,8 @@
                 "--GRU_input_dim", "16",
                 "--use_GRU",
                 "--always_clamp",
-                "--zero_init_GRU"
+                "--zero_init_GRU",
+                "--mixed_precision",
             ]
         },
         {
