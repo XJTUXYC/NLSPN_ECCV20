@@ -211,23 +211,28 @@ class NLSPN(nn.Module):
         list_feat = []
 
         for k in range(1, self.prop_time + 1):
-            # Input preservation for each iteration
-            if k==1 and self.args.preserve_input:
-                feat_result = (1.0 - mask_fix) * feat_result \
-                              + mask_fix * feat_fix
-
+            if k==1:
+                # Input preservation for each iteration
+                if self.args.preserve_input:
+                    feat_result = (1.0 - mask_fix) * feat_result + mask_fix * feat_fix
+                    
+                # Remove negative depth
+                if self.args.always_clamp:
+                    feat_result = torch.clamp(feat_result, min=0)
+                
             if confidence is not None:
                 feat_result = self._propagate_once(feat_result*confidence, offset, aff)
             else:
                 feat_result = self._propagate_once(feat_result, offset, aff)
 
+            # Input preservation for each iteration
             if self.args.preserve_input:
-                feat_result = (1.0 - mask_fix) * feat_result \
-                              + mask_fix * feat_fix
-                            
+                feat_result = (1.0 - mask_fix) * feat_result + mask_fix * feat_fix
+            
             # Remove negative depth
-            feat_result = torch.clamp(feat_result, min=0)
-                              
+            if self.args.always_clamp:
+                feat_result = torch.clamp(feat_result, min=0)
+                                                     
             list_feat.append(feat_result)
             
             if k<self.prop_time and self.args.use_GRU:
@@ -391,6 +396,10 @@ class NLSPNModel(nn.Module):
         # Diffusion
         y, y_inter, offset, aff, aff_const = \
             self.prop_layer(pred_init, guide, confidence, dep, rgb)
+            
+        # Remove negative depth
+        if not self.args.always_clamp:
+            y = torch.clamp(y, min=0)
 
         output = {'pred': y, 'pred_init': pred_init, 'pred_inter': y_inter,
                   'guidance': guide, 'offset': offset, 'aff': aff,

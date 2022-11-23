@@ -8,7 +8,7 @@
             "name": "Train",
             "type": "python",
             "request": "launch",
-            "program": "~/NLSPN_ECCV20/src/main.py",
+            "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "cwd": "${workspaceFolder}/src",
@@ -28,6 +28,7 @@
                 // "--prop_time", "18",
                 "--GRU_input_dim", "16",
                 "--use_GRU",
+                "--always_clamp",
             ]
         },
         {

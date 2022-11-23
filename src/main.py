@@ -272,8 +272,11 @@ def train(gpu, args):
                     'net': net.module.state_dict(),
                     'args': args
                 }
-
-            torch.save(state, '{}/model_{:05d}.pt'.format(args.save_dir, epoch))
+            
+            if os.path.isfile('{}/model_{:03d}.pt'.format(args.save_dir, epoch-1)):
+                os.remove('{}/model_{:03d}.pt'.format(args.save_dir, epoch-1))
+                
+            torch.save(state, '{}/model_{:03d}.pt'.format(args.save_dir, epoch))
 
         # Val
         torch.set_grad_enabled(False)
