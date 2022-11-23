@@ -29,6 +29,7 @@
                 "--GRU_input_dim", "16",
                 "--use_GRU",
                 "--always_clamp",
+                "--zero_init_GRU"
             ]
         },
         {
