@@ -26,7 +26,7 @@
                 "--num_sample", "500",
                 "--save", "nyu_result",
                 // "--prop_time", "18",
-                "--GRU_input_dim", "16",
+                "--affinity", "AS",
                 "--preserve_input",
                 "--use_GRU",
             ]
