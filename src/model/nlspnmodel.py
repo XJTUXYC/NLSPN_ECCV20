@@ -85,8 +85,9 @@ class NLSPN(nn.Module):
         self.deformable_groups = 1
         self.im2col_step = 64
         
-        self.GRU = ConvGRU(args)
-        self.encode_depth = conv_bn_relu(1, args.GRU_input_dim, kernel=3, stride=1, padding=1, bn=False)
+        if self.args.use_GRU:
+            self.GRU = ConvGRU(args)
+            self.encode_depth = conv_bn_relu(1, args.GRU_input_dim, kernel=3, stride=1, padding=1, bn=False)
 
     def _get_offset_affinity(self, guidance, confidence=None, rgb=None):
         B, _, H, W = guidance.shape
