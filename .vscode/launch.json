@@ -26,6 +26,7 @@
                 "--num_sample", "500",
                 "--save", "nyu_result",
                 // "--prop_time", "18",
+                "--network", "resnet18",
                 "--GRU_input_dim", "16",
                 "--use_GRU",
             ]
