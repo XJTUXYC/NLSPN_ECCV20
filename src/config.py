@@ -263,7 +263,7 @@ parser.add_argument('--use_GRU',
                     help="use GRU")
 parser.add_argument('--always_clamp',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help="always clamp")
 parser.add_argument('--zero_init_GRU',
                     action='store_true',

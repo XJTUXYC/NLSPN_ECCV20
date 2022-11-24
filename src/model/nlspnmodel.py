@@ -87,7 +87,11 @@ class NLSPN(nn.Module):
         
         if self.args.use_GRU:
             self.GRU = ConvGRU(args)
-            self.encode_depth = conv_bn_relu(1, args.GRU_input_dim, kernel=3, stride=1, padding=1, bn=False)
+            self.encode_aff0 = conv_bn_relu(8, args.GRU_input_dim, kernel=3, stride=1, padding=1, bn=False)
+            self.encode_aff1 = conv_bn_relu(args.GRU_input_dim, int(args.GRU_input_dim/2), kernel=3, stride=1, padding=1, bn=False)
+            self.encode_dep0 = conv_bn_relu(1, args.GRU_input_dim, kernel=3, stride=1, padding=1, bn=False)
+            self.encode_dep1 = conv_bn_relu(args.GRU_input_dim, int(args.GRU_input_dim/2), kernel=3, stride=1, padding=1, bn=False)
+            self.encode_aff_dep = conv_bn_relu(args.GRU_input_dim, args.GRU_input_dim, kernel=3, stride=1, padding=1, bn=False)
 
     def _get_offset_affinity(self, guidance, confidence=None, rgb=None):
         B, _, H, W = guidance.shape
@@ -180,10 +184,17 @@ class NLSPN(nn.Module):
 
         return feat
     
-    def _get_feature(self, aff, depth):
-        depth_feature = self.encode_depth(depth)
+    def _get_feature(self, aff, dep):
+        aff_feat = self.encode_aff0(aff)
+        aff_feat = self.encode_aff1(aff_feat)
         
-        return depth_feature
+        dep_feat = self.encode_dep0(dep)
+        dep_feat = self.encode_dep1(dep_feat)
+
+        aff_dep_feat = torch.cat([aff_feat, dep_feat], dim=1)
+        aff_dep_feat = self.encode_aff_dep(aff_dep_feat)
+        
+        return aff_dep_feat
 
     def forward(self, feat_init, guidance, confidence=None, feat_fix=None,
                 rgb=None):
@@ -241,9 +252,9 @@ class NLSPN(nn.Module):
                 list_aff.pop(self.idx_ref)
                 aff = torch.cat(list_aff, dim=1)
                 
-                depth_feature = self._get_feature(aff, feat_result)
+                aff_dep_feat = self._get_feature(aff, feat_result)
                 
-                aff = self.GRU(aff, depth_feature)
+                aff = self.GRU(aff, aff_dep_feat)
                 aff = self._affinity_normalization(aff)
 
         return feat_result, list_feat, offset, aff, self.aff_scale_const.data
