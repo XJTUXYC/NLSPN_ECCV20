@@ -193,11 +193,14 @@ class NLSPN(nn.Module):
 
         return feat
     
-    def _get_feature(self, aff, dep):
+    def _get_aff_feature(self, aff):
         aff_feat = self.encode_aff0(aff)
         aff_feat = self.encode_aff1(aff_feat)
         aff_feat = torch.tanh(self.encode_aff2(aff_feat))
         
+        return aff_feat
+    
+    def _get_dep_feature(self, dep):     
         dep_feat = self.encode_dep0(dep)
         dep_feat = self.encode_dep1(dep_feat)
         dep_feat = self.encode_dep2(dep_feat)
@@ -205,7 +208,7 @@ class NLSPN(nn.Module):
         # aff_dep_feat = torch.cat([aff_feat, dep_feat], dim=1)
         # aff_dep_feat = self.encode_aff_dep(aff_dep_feat)
         
-        return aff_feat, dep_feat
+        return dep_feat
     
     def _aff_head(self, aff_feat):
         aff = self.aff_head0(aff_feat)
@@ -275,7 +278,9 @@ class NLSPN(nn.Module):
                 list_aff.pop(self.idx_ref)
                 aff = torch.cat(list_aff, dim=1)
                 
-                aff_feat, dep_feat = self._get_feature(aff, feat_result)
+                dep_feat = self._get_dep_feature(feat_result)
+                if k==1:
+                    aff_feat = self._get_aff_feature(aff)
     
                 aff_feat = self.GRU(h=aff_feat, x=dep_feat)
                 
