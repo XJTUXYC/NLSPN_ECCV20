@@ -43,17 +43,23 @@ def get_resnet34(pretrained=True):
 
 
 def conv_bn_relu(ch_in, ch_out, kernel, stride=1, padding=0, bn=True,
-                 relu=True):
+                 relu=True, zero_init=False):
     assert (kernel % 2) == 1, \
         'only odd kernel is supported but kernel = {}'.format(kernel)
 
     layers = []
-    layers.append(nn.Conv2d(ch_in, ch_out, kernel, stride, padding,
-                            bias=not bn))
+    
+    conv = nn.Conv2d(ch_in, ch_out, kernel, stride, padding, bias=not bn)
+    if zero_init:
+        conv.weight.data.zero_()
+        if not bn:
+            conv.bias.data.zero_()
+    layers.append(conv)
+    
     if bn:
         layers.append(nn.BatchNorm2d(ch_out))
     if relu:
-        layers.append(nn.LeakyReLU(0.2, inplace=True))
+        layers.append(nn.ReLU(inplace=True))
 
     layers = nn.Sequential(*layers)
 
@@ -61,17 +67,23 @@ def conv_bn_relu(ch_in, ch_out, kernel, stride=1, padding=0, bn=True,
 
 
 def convt_bn_relu(ch_in, ch_out, kernel, stride=1, padding=0, output_padding=0,
-                  bn=True, relu=True):
+                  bn=True, relu=True, zero_init=False):
     assert (kernel % 2) == 1, \
         'only odd kernel is supported but kernel = {}'.format(kernel)
 
     layers = []
-    layers.append(nn.ConvTranspose2d(ch_in, ch_out, kernel, stride, padding,
-                                     output_padding, bias=not bn))
+    
+    convt = nn.ConvTranspose2d(ch_in, ch_out, kernel, stride, padding, output_padding, bias=not bn)
+    if zero_init:
+        convt.weight.data.zero_()
+        if not bn:
+            convt.bias.data.zero_()
+    layers.append(convt)
+    
     if bn:
         layers.append(nn.BatchNorm2d(ch_out))
     if relu:
-        layers.append(nn.LeakyReLU(0.2, inplace=True))
+        layers.append(nn.ReLU(inplace=True))
 
     layers = nn.Sequential(*layers)
 

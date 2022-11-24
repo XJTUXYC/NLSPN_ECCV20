@@ -25,10 +25,12 @@
                 "--max_depth", "10.0",
                 "--num_sample", "500",
                 "--save", "nyu_result",
-                // "--prop_time", "18",
+                "--prop_time", "12",
                 "--network", "resnet18",
-                "--GRU_input_dim", "16",
+                "--GRU_hidden_dim", "128",
+                "--GRU_input_dim", "128",
                 "--use_GRU",
+                "--no_conf",
             ]
         },
         {
