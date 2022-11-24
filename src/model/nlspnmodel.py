@@ -416,9 +416,8 @@ class ConvGRU(nn.Module):
         self.convr = nn.Conv2d(args.GRU_hidden_dim+args.GRU_input_dim, args.GRU_hidden_dim, 3, padding=1)
         
         self.convq = nn.Conv2d(args.GRU_hidden_dim+args.GRU_input_dim, args.GRU_hidden_dim, 3, padding=1)
-        if args.zero_init_GRU:
-            self.convq.weight.data.zero_()
-            self.convq.bias.data.zero_()
+        self.convq.weight.data.zero_()
+        self.convq.bias.data.zero_()
 
     def forward(self, h, x):
         hx = torch.cat([h, x], dim=1)
