@@ -265,6 +265,10 @@ parser.add_argument('--always_clamp',
                     action='store_true',
                     default=False,
                     help="always clamp")
+parser.add_argument('--zero_init_GRU',
+                    action='store_true',
+                    default=True,
+                    help="zero init GRU")
 
 
 args = parser.parse_args()
