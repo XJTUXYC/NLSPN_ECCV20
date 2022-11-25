@@ -102,7 +102,7 @@ parser.add_argument('--prop_kernel',
                     help='propagation kernel size')
 parser.add_argument('--preserve_input',
                     action='store_true',
-                    default=True,
+                    default=False,
                     help='preserve input points by replacement')
 parser.add_argument('--affinity',
                     type=str,

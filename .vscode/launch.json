@@ -30,7 +30,6 @@
                 "--GRU_hidden_dim", "128",
                 "--GRU_input_dim", "128",
                 "--use_GRU",
-                "--zero_init_aff",
             ]
         },
         {
