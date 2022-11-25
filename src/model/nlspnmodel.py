@@ -100,7 +100,7 @@ class NLSPN(nn.Module):
             
             self.aff_head0 = convt_bn_relu(args.GRU_hidden_dim, int(args.GRU_hidden_dim/2), kernel=3, stride=2, padding=1, output_padding=1, bn=False)
             self.aff_head1 = convt_bn_relu(int(args.GRU_hidden_dim/2), 16, kernel=3, stride=2, padding=1, output_padding=1, bn=False)
-            self.aff_head2 = convt_bn_relu(16, 8, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=True)
+            self.aff_head2 = convt_bn_relu(16, 8, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
 
     def _get_offset_affinity(self, guidance, confidence=None, rgb=None):
         B, _, H, W = guidance.shape
@@ -347,7 +347,7 @@ class NLSPNModel(nn.Module):
         self.gd_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1,
                                     padding=1)
         self.gd_dec0 = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1,
-                                    padding=1, bn=False, relu=False, zero_init=True)
+                                    padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
 
         if self.args.conf_prop:
             # Confidence Branch

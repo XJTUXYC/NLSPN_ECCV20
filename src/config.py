@@ -261,6 +261,9 @@ parser.add_argument('--use_GRU',
                     action='store_true',
                     default=False,
                     help="use GRU")
+parser.add_argument('--zero_init_aff',
+                    default=True,
+                    help="zero init aff")
 
 
 args = parser.parse_args()
