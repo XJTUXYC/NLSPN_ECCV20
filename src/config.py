@@ -262,7 +262,8 @@ parser.add_argument('--use_GRU',
                     default=False,
                     help="use GRU")
 parser.add_argument('--zero_init_aff',
-                    default=True,
+                    action='store_true',
+                    default=False,
                     help="zero init aff")
 
 
