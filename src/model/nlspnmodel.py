@@ -20,32 +20,22 @@ import torch.nn as nn
 
         
 class NLSPN(nn.Module):
-    def __init__(self, args, ch_f):
+    def __init__(self, args):
         super(NLSPN, self).__init__()
 
-        # Guidance : [B x ch_g x H x W]
-        # Feature : [B x ch_f x H x W]
-
-        # Currently only support ch_f == 1
-        assert ch_f == 1, 'only tested with ch_f == 1 but {}'.format(ch_f)
-
         self.args = args
-
-        self.prop_time = self.args.prop_time
-        self.affinity = self.args.affinity
         
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
-
-        self.ch_f = ch_f
+        self.ch_f = 1
         
         # Assume zero offset for center pixels
         self.idx_ref = self.num_neighbors // 2
 
-        if self.affinity in ['AS', 'ASS', 'TC', 'TGASS']:
-            if self.affinity == 'TC':
+        if self.args.affinity in ['AS', 'ASS', 'TC', 'TGASS']:
+            if self.args.affinity == 'TC':
                 self.aff_scale_const = nn.Parameter(self.num_neighbors * torch.ones(1))
                 self.aff_scale_const.requires_grad = False
-            elif self.affinity == 'TGASS':
+            elif self.args.affinity == 'TGASS':
                 self.aff_scale_const = nn.Parameter(
                     self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
             else:
@@ -89,7 +79,7 @@ class NLSPN(nn.Module):
     def _get_offset_affinity(self, guidance, confidence=None, rgb=None):
         B, _, H, W = guidance.shape
 
-        if self.affinity in ['AS', 'ASS', 'TC', 'TGASS']:
+        if self.args.affinity in ['AS', 'ASS', 'TC', 'TGASS']:
             # offset_aff = self.conv_offset_aff(guidance)
             o1, o2, aff = torch.chunk(guidance, 3, dim=1)
 
@@ -104,11 +94,11 @@ class NLSPN(nn.Module):
         return offset, aff
     
     def _affinity_normalization(self, aff):
-        if self.affinity in ['AS', 'ASS']:
+        if self.args.affinity in ['AS', 'ASS']:
             pass
-        elif self.affinity == 'TC':
+        elif self.args.affinity == 'TC':
             aff = torch.tanh(aff) / self.aff_scale_const
-        elif self.affinity == 'TGASS':
+        elif self.args.affinity == 'TGASS':
             aff = torch.tanh(aff) / (self.aff_scale_const + 1e-8)
         else:
             raise NotImplementedError
@@ -117,10 +107,10 @@ class NLSPN(nn.Module):
         aff_abs = torch.abs(aff)
         aff_abs_sum = torch.sum(aff_abs, dim=1, keepdim=True) + 1e-4
 
-        if self.affinity in ['ASS', 'TGASS']:
+        if self.args.affinity in ['ASS', 'TGASS']:
             aff_abs_sum[aff_abs_sum < 1.0] = 1.0
 
-        if self.affinity in ['AS', 'ASS', 'TGASS']:
+        if self.args.affinity in ['AS', 'ASS', 'TGASS']:
             aff = aff / aff_abs_sum
 
         aff = self._aff_insert(aff)
@@ -221,7 +211,7 @@ class NLSPN(nn.Module):
 
         list_feat = []
 
-        for k in range(1, self.prop_time + 1):
+        for k in range(1, self.args.prop_time + 1):
             if k == 1:
                 if self.args.preserve_input:
                     # Input preservation for each iteration
@@ -246,7 +236,7 @@ class NLSPN(nn.Module):
                                                      
             list_feat.append(feat_result)
             
-            if k<self.prop_time and self.args.use_GRU:
+            if k<self.args.prop_time and self.args.use_GRU:
                 # list_aff = list(torch.chunk(aff, self.num+1, dim=1))
                 # list_aff.pop(self.idx_ref)
                 # aff = torch.cat(list_aff, dim=1)

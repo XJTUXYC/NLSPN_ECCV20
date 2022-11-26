@@ -267,7 +267,7 @@ parser.add_argument('--no_conf',
                     help='no confidence for propagation')
 parser.add_argument('--prop_kernel',
                     type=int,
-                    default=7,
+                    default=3,
                     help='propagation kernel size')
 
 args = parser.parse_args()
