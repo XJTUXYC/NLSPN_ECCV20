@@ -18,14 +18,79 @@ from .modulated_deform_conv_func import ModulatedDeformConvFunction
 import torch
 import torch.nn as nn
 
-        
-class NLSPN(nn.Module):
+
+class NLSPNModel(nn.Module):
     def __init__(self, args):
-        super(NLSPN, self).__init__()
+        super(NLSPNModel, self).__init__()
 
         self.args = args
         
+        assert (self.args.prop_kernel % 2) == 1, \
+            'only odd kernel is supported but k_f = {}'.format(self.args.prop_kernel)
+
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
+
+        # Encoder
+        self.conv1_rgb = conv_bn_relu(3, 48, kernel=5, stride=1, padding=2,
+                                      bn=False)
+        self.conv1_dep = conv_bn_relu(1, 16, kernel=5, stride=1, padding=2,
+                                      bn=False)
+
+        if self.args.network == 'resnet18':
+            net = get_resnet18(not self.args.from_scratch)
+        elif self.args.network == 'resnet34':
+            net = get_resnet34(not self.args.from_scratch)
+        else:
+            raise NotImplementedError
+
+        # 1/1
+        self.conv2 = net.layer1
+        # 1/2
+        self.conv3 = net.layer2
+        # 1/4
+        self.conv4 = net.layer3
+
+        del net
+
+        # 1/8
+        self.conv5 = conv_bn_relu(256, 256, kernel=3, stride=2, padding=1)
+
+        # Shared Decoder
+        # 1/4
+        self.dec4 = convt_bn_relu(256, 128, kernel=3, stride=2,
+                                  padding=1, output_padding=1)
+        # 1/2
+        self.dec3 = convt_bn_relu(128+256, 64, kernel=3, stride=2,
+                                  padding=1, output_padding=1)
+        # 1/1
+        self.dec2 = convt_bn_relu(64+128, 64, kernel=3, stride=2,
+                                  padding=1, output_padding=1)
+
+        # Init Depth Branch
+        # 1/1
+        self.id_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1,
+                                    padding=1)
+        self.id_dec0 = conv_bn_relu(64+64, 1, kernel=3, stride=1,
+                                    padding=1, bn=False, relu=True)
+
+        # Guidance Branch
+        # 1/1
+        self.gd_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1,
+                                    padding=1)
+        self.gd_dec0 = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1,
+                                    padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+
+        if self.args.conf_prop:
+            # Confidence Branch
+            # Confidence is shared for propagation and mask generation
+            # 1/1
+            self.cf_dec1 = conv_bn_relu(64+64, 32, kernel=3, stride=1,
+                                        padding=1)
+            self.cf_dec0 = nn.Sequential(
+                nn.Conv2d(32+64, 1, kernel_size=3, stride=1, padding=1),
+                nn.Sigmoid()
+            )
+
         self.ch_f = 1
         
         # Assume zero offset for center pixels
@@ -76,6 +141,36 @@ class NLSPN(nn.Module):
             self.aff_head1 = convt_bn_relu(int(args.GRU_hidden_dim/2), 16, kernel=3, stride=2, padding=1, output_padding=1, bn=False)
             self.aff_head2 = convt_bn_relu(16, self.num_neighbors, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
 
+        # Set parameter groups
+        params = []
+        for param in self.named_parameters():
+            if param[1].requires_grad:
+                params.append(param[1])
+
+        params = nn.ParameterList(params)
+
+        self.param_groups = [
+            {'params': params, 'lr': self.args.lr}
+        ]
+
+    def _concat(self, fd, fe, dim=1):
+        # Decoder feature may have additional padding
+        _, _, Hd, Wd = fd.shape
+        _, _, He, We = fe.shape
+
+        # Remove additional padding
+        if Hd > He:
+            h = Hd - He
+            fd = fd[:, :, :-h, :]
+
+        if Wd > We:
+            w = Wd - We
+            fd = fd[:, :, :, :-w]
+
+        f = torch.cat((fd, fe), dim=dim)
+
+        return f
+    
     def _get_offset_affinity(self, guidance, confidence=None, rgb=None):
         B, _, H, W = guidance.shape
 
@@ -186,177 +281,6 @@ class NLSPN(nn.Module):
         
         return aff
 
-    def forward(self, feat_init, guidance, confidence=None, feat_fix=None,
-                rgb=None):
-        assert self.ch_f == feat_init.shape[1]
-
-        if self.args.conf_prop:
-            assert confidence is not None
-
-        if self.args.conf_prop:
-            offset, aff = self._get_offset_affinity(guidance, confidence, rgb)
-        else:
-            offset, aff = self._get_offset_affinity(guidance, None, rgb)
-
-        # Propagation
-        if self.args.preserve_input:
-            assert feat_init.shape == feat_fix.shape
-            mask_fix = torch.sum(feat_fix > 0.0, dim=1, keepdim=True).detach()
-            mask_fix = (mask_fix > 0.0).type_as(feat_fix)
-            
-            if confidence is not None:
-                confidence = (1.0 - mask_fix) * confidence + mask_fix
-
-        feat_result = feat_init
-
-        list_feat = []
-
-        for k in range(1, self.args.prop_time + 1):
-            if k == 1:
-                if self.args.preserve_input:
-                    # Input preservation for each iteration
-                    feat_result = (1.0 - mask_fix) * feat_result + mask_fix * feat_fix
-                
-                if self.args.always_clip:
-                    # Remove negative depth
-                    feat_result = torch.clamp(feat_result, min=0)
-                
-            if confidence is not None:
-                feat_result = self._propagate_once(feat_result*confidence, offset, aff)
-            else:
-                feat_result = self._propagate_once(feat_result, offset, aff)
-
-            if self.args.preserve_input:
-                # Input preservation for each iteration
-                feat_result = (1.0 - mask_fix) * feat_result + mask_fix * feat_fix
-                
-            if self.args.always_clip:
-                # Remove negative depth
-                feat_result = torch.clamp(feat_result, min=0)
-                                                     
-            list_feat.append(feat_result)
-            
-            if k<self.args.prop_time and self.args.use_GRU:
-                # list_aff = list(torch.chunk(aff, self.num+1, dim=1))
-                # list_aff.pop(self.idx_ref)
-                # aff = torch.cat(list_aff, dim=1)
-                
-                dep_feat = self._get_dep_feature(feat_result)
-                
-                if k == 1:
-                    aff_feat = self._get_aff_feature(aff)
-    
-                aff_feat = self.GRU(h=aff_feat, x=dep_feat)
-                
-                aff = self._aff_head(aff_feat)
-
-        return feat_result, list_feat, offset, aff, self.aff_scale_const.data
-
-
-class NLSPNModel(nn.Module):
-    def __init__(self, args):
-        super(NLSPNModel, self).__init__()
-
-        self.args = args
-        
-        assert (self.args.prop_kernel % 2) == 1, \
-            'only odd kernel is supported but k_f = {}'.format(self.args.prop_kernel)
-
-        self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
-
-        # Encoder
-        self.conv1_rgb = conv_bn_relu(3, 48, kernel=5, stride=1, padding=2,
-                                      bn=False)
-        self.conv1_dep = conv_bn_relu(1, 16, kernel=5, stride=1, padding=2,
-                                      bn=False)
-
-        if self.args.network == 'resnet18':
-            net = get_resnet18(not self.args.from_scratch)
-        elif self.args.network == 'resnet34':
-            net = get_resnet34(not self.args.from_scratch)
-        else:
-            raise NotImplementedError
-
-        # 1/1
-        self.conv2 = net.layer1
-        # 1/2
-        self.conv3 = net.layer2
-        # 1/4
-        self.conv4 = net.layer3
-
-        del net
-
-        # 1/8
-        self.conv5 = conv_bn_relu(256, 256, kernel=3, stride=2, padding=1)
-
-        # Shared Decoder
-        # 1/4
-        self.dec4 = convt_bn_relu(256, 128, kernel=3, stride=2,
-                                  padding=1, output_padding=1)
-        # 1/2
-        self.dec3 = convt_bn_relu(128+256, 64, kernel=3, stride=2,
-                                  padding=1, output_padding=1)
-        # 1/1
-        self.dec2 = convt_bn_relu(64+128, 64, kernel=3, stride=2,
-                                  padding=1, output_padding=1)
-
-        # Init Depth Branch
-        # 1/1
-        self.id_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1,
-                                    padding=1)
-        self.id_dec0 = conv_bn_relu(64+64, 1, kernel=3, stride=1,
-                                    padding=1, bn=False, relu=True)
-
-        # Guidance Branch
-        # 1/1
-        self.gd_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1,
-                                    padding=1)
-        self.gd_dec0 = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1,
-                                    padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
-
-        if self.args.conf_prop:
-            # Confidence Branch
-            # Confidence is shared for propagation and mask generation
-            # 1/1
-            self.cf_dec1 = conv_bn_relu(64+64, 32, kernel=3, stride=1,
-                                        padding=1)
-            self.cf_dec0 = nn.Sequential(
-                nn.Conv2d(32+64, 1, kernel_size=3, stride=1, padding=1),
-                nn.Sigmoid()
-            )
-
-        self.prop_layer = NLSPN(args, 1)
-
-        # Set parameter groups
-        params = []
-        for param in self.named_parameters():
-            if param[1].requires_grad:
-                params.append(param[1])
-
-        params = nn.ParameterList(params)
-
-        self.param_groups = [
-            {'params': params, 'lr': self.args.lr}
-        ]
-
-    def _concat(self, fd, fe, dim=1):
-        # Decoder feature may have additional padding
-        _, _, Hd, Wd = fd.shape
-        _, _, He, We = fe.shape
-
-        # Remove additional padding
-        if Hd > He:
-            h = Hd - He
-            fd = fd[:, :, :-h, :]
-
-        if Wd > We:
-            w = Wd - We
-            fd = fd[:, :, :, :-w]
-
-        f = torch.cat((fd, fe), dim=dim)
-
-        return f
-
     def forward(self, sample):
         rgb = sample['rgb']
         dep = sample['dep']
@@ -394,16 +318,75 @@ class NLSPNModel(nn.Module):
             confidence = None
 
         # Diffusion
-        y, y_inter, offset, aff, aff_const = \
-            self.prop_layer(pred_init, guide, confidence, dep, rgb)
+        assert self.ch_f == pred_init.shape[1]
+
+        if self.args.conf_prop:
+            assert confidence is not None
+
+        if self.args.conf_prop:
+            offset, aff = self._get_offset_affinity(guide, confidence, rgb)
+        else:
+            offset, aff = self._get_offset_affinity(guide, None, rgb)
+
+        # Propagation
+        if self.args.preserve_input:
+            assert pred_init.shape == dep.shape
+            mask_fix = torch.sum(dep > 0.0, dim=1, keepdim=True).detach()
+            mask_fix = (mask_fix > 0.0).type_as(dep)
+            
+            if confidence is not None:
+                confidence = (1.0 - mask_fix) * confidence + mask_fix
+
+        new_pred = pred_init
+
+        list_pred = []
+
+        for k in range(1, self.args.prop_time + 1):
+            if k == 1:
+                if self.args.preserve_input:
+                    # Input preservation for each iteration
+                    new_pred = (1.0 - mask_fix) * new_pred + mask_fix * dep
+                
+                if self.args.always_clip:
+                    # Remove negative depth
+                    new_pred = torch.clamp(new_pred, min=0)
+                
+            if confidence is not None:
+                new_pred = self._propagate_once(new_pred*confidence, offset, aff)
+            else:
+                new_pred = self._propagate_once(new_pred, offset, aff)
+
+            if self.args.preserve_input:
+                # Input preservation for each iteration
+                new_pred = (1.0 - mask_fix) * new_pred + mask_fix * dep
+                
+            if self.args.always_clip:
+                # Remove negative depth
+                new_pred = torch.clamp(new_pred, min=0)
+                                                     
+            list_pred.append(new_pred)
+            
+            if k<self.args.prop_time and self.args.use_GRU:
+                # list_aff = list(torch.chunk(aff, self.num+1, dim=1))
+                # list_aff.pop(self.idx_ref)
+                # aff = torch.cat(list_aff, dim=1)
+                
+                dep_feat = self._get_dep_feature(new_pred)
+                
+                if k == 1:
+                    aff_feat = self._get_aff_feature(aff)
+    
+                aff_feat = self.GRU(h=aff_feat, x=dep_feat)
+                
+                aff = self._aff_head(aff_feat)
           
         if not self.args.always_clip:
             # Remove negative depth
-            y = torch.clamp(y, min=0)
+            new_pred = torch.clamp(new_pred, min=0)
 
-        output = {'pred': y, 'pred_init': pred_init, 'pred_inter': y_inter,
+        output = {'pred': new_pred, 'pred_init': pred_init, 'pred_inter': list_pred,
                   'guidance': guide, 'offset': offset, 'aff': aff,
-                  'gamma': aff_const, 'confidence': confidence}
+                  'gamma': self.aff_scale_const.data, 'confidence': confidence}
 
         return output
     
