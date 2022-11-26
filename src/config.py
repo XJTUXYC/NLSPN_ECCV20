@@ -83,10 +83,6 @@ parser.add_argument('--model_name',
                     default='NLSPN',
                     choices=('NLSPN',),
                     help='model name')
-parser.add_argument('--prop_kernel',
-                    type=int,
-                    default=3,
-                    help='propagation kernel size')
 parser.add_argument('--affinity_gamma',
                     type=float,
                     default=0.5,
@@ -269,7 +265,10 @@ parser.add_argument('--no_conf',
                     action='store_false',
                     dest='conf_prop',
                     help='no confidence for propagation')
-
+parser.add_argument('--prop_kernel',
+                    type=int,
+                    default=7,
+                    help='propagation kernel size')
 
 args = parser.parse_args()
 

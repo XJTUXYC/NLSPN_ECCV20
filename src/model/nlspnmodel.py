@@ -20,7 +20,7 @@ import torch.nn as nn
 
         
 class NLSPN(nn.Module):
-    def __init__(self, args, ch_g, ch_f, k_g, k_f):
+    def __init__(self, args, ch_f):
         super(NLSPN, self).__init__()
 
         # Guidance : [B x ch_g x H x W]
@@ -29,39 +29,25 @@ class NLSPN(nn.Module):
         # Currently only support ch_f == 1
         assert ch_f == 1, 'only tested with ch_f == 1 but {}'.format(ch_f)
 
-        assert (k_g % 2) == 1, \
-            'only odd kernel is supported but k_g = {}'.format(k_g)
-        pad_g = int((k_g - 1) / 2)
-        assert (k_f % 2) == 1, \
-            'only odd kernel is supported but k_f = {}'.format(k_f)
-        pad_f = int((k_f - 1) / 2)
-
         self.args = args
+
         self.prop_time = self.args.prop_time
         self.affinity = self.args.affinity
+        
+        self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
 
-        self.ch_g = ch_g
         self.ch_f = ch_f
-        self.k_g = k_g
-        self.k_f = k_f
+        
         # Assume zero offset for center pixels
-        self.num = self.k_f * self.k_f - 1
-        self.idx_ref = self.num // 2
+        self.idx_ref = self.num_neighbors // 2
 
         if self.affinity in ['AS', 'ASS', 'TC', 'TGASS']:
-            # self.conv_offset_aff = nn.Conv2d(
-            #     self.ch_g, 3 * self.num, kernel_size=self.k_g, stride=1,
-            #     padding=pad_g, bias=True
-            # )
-            # self.conv_offset_aff.weight.data.zero_()
-            # self.conv_offset_aff.bias.data.zero_()
-
             if self.affinity == 'TC':
-                self.aff_scale_const = nn.Parameter(self.num * torch.ones(1))
+                self.aff_scale_const = nn.Parameter(self.num_neighbors * torch.ones(1))
                 self.aff_scale_const.requires_grad = False
             elif self.affinity == 'TGASS':
                 self.aff_scale_const = nn.Parameter(
-                    self.args.affinity_gamma * self.num * torch.ones(1))
+                    self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
             else:
                 self.aff_scale_const = nn.Parameter(torch.ones(1))
                 self.aff_scale_const.requires_grad = False
@@ -69,7 +55,7 @@ class NLSPN(nn.Module):
             raise NotImplementedError
 
         # Dummy parameters for gathering
-        self.w = nn.Parameter(torch.ones((self.ch_f, 1, self.k_f, self.k_f)))
+        self.w = nn.Parameter(torch.ones((self.ch_f, 1, self.args.prop_kernel, self.args.prop_kernel)))
         self.b = nn.Parameter(torch.zeros(self.ch_f))
 
         self.w.requires_grad = False
@@ -79,7 +65,7 @@ class NLSPN(nn.Module):
         self.w_conf.requires_grad = False
 
         self.stride = 1
-        self.padding = pad_f
+        self.padding = int((self.args.prop_kernel - 1) / 2)
         self.dilation = 1
         self.groups = self.ch_f
         self.deformable_groups = 1
@@ -88,7 +74,7 @@ class NLSPN(nn.Module):
         if self.args.use_GRU:
             self.GRU = ConvGRU(args)
             
-            self.encode_aff0 = conv_bn_relu(9, 16, kernel=7, stride=2, padding=3, bn=False)
+            self.encode_aff0 = conv_bn_relu(self.num_neighbors+1, 16, kernel=7, stride=2, padding=3, bn=False)
             self.encode_aff1 = conv_bn_relu(16, int(args.GRU_hidden_dim/2), kernel=5, stride=2, padding=2, bn=False)
             self.encode_aff2 = conv_bn_relu(int(args.GRU_hidden_dim/2), args.GRU_hidden_dim, kernel=3, stride=2, padding=1, bn=False, relu=False)
             
@@ -98,7 +84,7 @@ class NLSPN(nn.Module):
             
             self.aff_head0 = convt_bn_relu(args.GRU_hidden_dim, int(args.GRU_hidden_dim/2), kernel=3, stride=2, padding=1, output_padding=1, bn=False)
             self.aff_head1 = convt_bn_relu(int(args.GRU_hidden_dim/2), 16, kernel=3, stride=2, padding=1, output_padding=1, bn=False)
-            self.aff_head2 = convt_bn_relu(16, 8, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            self.aff_head2 = convt_bn_relu(16, self.num_neighbors, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
 
     def _get_offset_affinity(self, guidance, confidence=None, rgb=None):
         B, _, H, W = guidance.shape
@@ -193,8 +179,8 @@ class NLSPN(nn.Module):
     
     def _off_insert(self, offset):
         B, _, H, W = offset.shape
-        offset = offset.view(B, self.num, 2, H, W)
-        list_offset = list(torch.chunk(offset, self.num, dim=1))
+        offset = offset.view(B, self.num_neighbors, 2, H, W)
+        list_offset = list(torch.chunk(offset, self.num_neighbors, dim=1))
         list_offset.insert(self.idx_ref, torch.zeros((B, 1, 2, H, W)).type_as(offset))
         offset = torch.cat(list_offset, dim=1).view(B, -1, H, W)
         
@@ -204,7 +190,7 @@ class NLSPN(nn.Module):
         aff_sum = torch.sum(aff, dim=1, keepdim=True)
         aff_ref = 1.0 - aff_sum
 
-        list_aff = list(torch.chunk(aff, self.num, dim=1))
+        list_aff = list(torch.chunk(aff, self.num_neighbors, dim=1))
         list_aff.insert(self.idx_ref, aff_ref)
         aff = torch.cat(list_aff, dim=1)
         
@@ -282,6 +268,9 @@ class NLSPNModel(nn.Module):
         super(NLSPNModel, self).__init__()
 
         self.args = args
+        
+        assert (self.args.prop_kernel % 2) == 1, \
+            'only odd kernel is supported but k_f = {}'.format(self.args.prop_kernel)
 
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
 
@@ -346,8 +335,7 @@ class NLSPNModel(nn.Module):
                 nn.Sigmoid()
             )
 
-        self.prop_layer = NLSPN(args, self.num_neighbors, 1, 3,
-                                self.args.prop_kernel)
+        self.prop_layer = NLSPN(args, 1)
 
         # Set parameter groups
         params = []
