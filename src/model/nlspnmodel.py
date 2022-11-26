@@ -88,19 +88,17 @@ class NLSPN(nn.Module):
         if self.args.use_GRU:
             self.GRU = ConvGRU(args)
             
-            self.encode_aff0 = conv_bn_relu(27, 32, kernel=7, stride=2, padding=3, bn=False)
-            self.encode_aff1 = conv_bn_relu(32, int(args.GRU_hidden_dim/2), kernel=5, stride=2, padding=2, bn=False)
+            self.encode_aff0 = conv_bn_relu(9, 16, kernel=7, stride=2, padding=3, bn=False)
+            self.encode_aff1 = conv_bn_relu(16, int(args.GRU_hidden_dim/2), kernel=5, stride=2, padding=2, bn=False)
             self.encode_aff2 = conv_bn_relu(int(args.GRU_hidden_dim/2), args.GRU_hidden_dim, kernel=3, stride=2, padding=1, bn=False, relu=False)
             
             self.encode_dep0 = conv_bn_relu(1, 16, kernel=7, stride=2, padding=3, bn=False)
             self.encode_dep1 = conv_bn_relu(16, int(args.GRU_input_dim/2), kernel=5, stride=2, padding=2, bn=False)
             self.encode_dep2 = conv_bn_relu(int(args.GRU_input_dim/2), args.GRU_input_dim, kernel=3, stride=2, padding=1, bn=False)
             
-            # self.encode_aff_dep = conv_bn_relu(args.GRU_input_dim, args.GRU_input_dim, kernel=3, stride=1, padding=1, bn=False)
-            
-            self.off_aff_head0 = convt_bn_relu(args.GRU_hidden_dim, int(args.GRU_hidden_dim/2), kernel=3, stride=2, padding=1, output_padding=1, bn=False)
-            self.off_aff_head1 = convt_bn_relu(int(args.GRU_hidden_dim/2), 32, kernel=3, stride=2, padding=1, output_padding=1, bn=False)
-            self.off_aff_head2 = convt_bn_relu(32, 24, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            self.aff_head0 = convt_bn_relu(args.GRU_hidden_dim, int(args.GRU_hidden_dim/2), kernel=3, stride=2, padding=1, output_padding=1, bn=False)
+            self.aff_head1 = convt_bn_relu(int(args.GRU_hidden_dim/2), 16, kernel=3, stride=2, padding=1, output_padding=1, bn=False)
+            self.aff_head2 = convt_bn_relu(16, 8, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
 
     def _get_offset_affinity(self, guidance, confidence=None, rgb=None):
         B, _, H, W = guidance.shape
@@ -129,40 +127,6 @@ class NLSPN(nn.Module):
         else:
             raise NotImplementedError
 
-        # # Apply confidence
-        # # TODO : Need more efficient way
-        # if self.args.conf_prop:
-        #     list_conf = []
-        #     offset_each = torch.chunk(offset, self.num + 1, dim=1)
-
-        #     modulation_dummy = torch.ones((B, 1, H, W)).type_as(offset).detach()
-
-        #     for idx_off in range(0, self.num + 1):
-        #         ww = idx_off % self.k_f
-        #         hh = idx_off // self.k_f
-
-        #         if ww == (self.k_f - 1) / 2 and hh == (self.k_f - 1) / 2:
-        #             continue
-
-        #         offset_tmp = offset_each[idx_off].detach()
-
-        #         # NOTE : Use --legacy option ONLY for the pre-trained models
-        #         # for ECCV20 results.
-        #         if self.args.legacy:
-        #             offset_tmp[:, 0, :, :] = \
-        #                 offset_tmp[:, 0, :, :] + hh - (self.k_f - 1) / 2
-        #             offset_tmp[:, 1, :, :] = \
-        #                 offset_tmp[:, 1, :, :] + ww - (self.k_f - 1) / 2
-
-        #         conf_tmp = ModulatedDeformConvFunction.apply(
-        #             confidence, offset_tmp, modulation_dummy, self.w_conf,
-        #             self.b, self.stride, 0, self.dilation, self.groups,
-        #             self.deformable_groups, self.im2col_step)
-        #         list_conf.append(conf_tmp)
-
-        #     conf_aff = torch.cat(list_conf, dim=1)
-        #     aff = aff * conf_aff.contiguous()
-
         # Affinity normalization
         aff_abs = torch.abs(aff)
         aff_abs_sum = torch.sum(aff_abs, dim=1, keepdim=True) + 1e-4
@@ -173,12 +137,7 @@ class NLSPN(nn.Module):
         if self.affinity in ['AS', 'ASS', 'TGASS']:
             aff = aff / aff_abs_sum
 
-        aff_sum = torch.sum(aff, dim=1, keepdim=True)
-        aff_ref = 1.0 - aff_sum
-
-        list_aff = list(torch.chunk(aff, self.num, dim=1))
-        list_aff.insert(self.idx_ref, aff_ref)
-        aff = torch.cat(list_aff, dim=1)
+        aff = self._aff_insert(aff)
         
         return aff
     
@@ -190,8 +149,8 @@ class NLSPN(nn.Module):
 
         return feat
     
-    def _get_off_aff_feature(self, aff):
-        aff_feat = self.encode_aff0(aff)
+    def _get_aff_feature(self, off_aff):
+        aff_feat = self.encode_aff0(off_aff)
         aff_feat = self.encode_aff1(aff_feat)
         aff_feat = torch.tanh(self.encode_aff2(aff_feat))
         
@@ -207,12 +166,15 @@ class NLSPN(nn.Module):
         
         return dep_feat
     
-    def _off_aff_head(self, off_aff_feat):
-        off_aff = self.off_aff_head0(off_aff_feat)
-        off_aff = self.off_aff_head1(off_aff)
-        off_aff = self.off_aff_head2(off_aff)
+    def _aff_head(self, aff_feat):
+        aff = self.aff_head0(aff_feat)
+        aff = self.aff_head1(aff)
+        aff = self.aff_head2(aff)
         
-        return off_aff
+        aff = self._clip_as(aff, self.args.patch_height, self.args.patch_width)
+        aff = self._affinity_normalization(aff)
+        
+        return aff
     
     def _clip_as(self, fd, He, We, dim=1):
         # Decoder feature may have additional padding
@@ -237,6 +199,16 @@ class NLSPN(nn.Module):
         offset = torch.cat(list_offset, dim=1).view(B, -1, H, W)
         
         return offset
+    
+    def _aff_insert(self, aff):
+        aff_sum = torch.sum(aff, dim=1, keepdim=True)
+        aff_ref = 1.0 - aff_sum
+
+        list_aff = list(torch.chunk(aff, self.num, dim=1))
+        list_aff.insert(self.idx_ref, aff_ref)
+        aff = torch.cat(list_aff, dim=1)
+        
+        return aff
 
     def forward(self, feat_init, guidance, confidence=None, feat_fix=None,
                 rgb=None):
@@ -264,18 +236,27 @@ class NLSPN(nn.Module):
         list_feat = []
 
         for k in range(1, self.prop_time + 1):
-            if k==1 and self.args.preserve_input:
-                # Input preservation for each iteration
-                feat_result = (1.0 - mask_fix) * feat_result + mask_fix * feat_fix
+            if k == 1:
+                if self.args.preserve_input:
+                    # Input preservation for each iteration
+                    feat_result = (1.0 - mask_fix) * feat_result + mask_fix * feat_fix
+                
+                if self.args.always_clip:
+                    # Remove negative depth
+                    feat_result = torch.clamp(feat_result, min=0)
                 
             if confidence is not None:
                 feat_result = self._propagate_once(feat_result*confidence, offset, aff)
             else:
                 feat_result = self._propagate_once(feat_result, offset, aff)
 
-            # Input preservation for each iteration
             if self.args.preserve_input:
+                # Input preservation for each iteration
                 feat_result = (1.0 - mask_fix) * feat_result + mask_fix * feat_fix
+                
+            if self.args.always_clip:
+                # Remove negative depth
+                feat_result = torch.clamp(feat_result, min=0)
                                                      
             list_feat.append(feat_result)
             
@@ -284,24 +265,14 @@ class NLSPN(nn.Module):
                 # list_aff.pop(self.idx_ref)
                 # aff = torch.cat(list_aff, dim=1)
                 
-                # list_offset = list(torch.chunk(offset, 2*(self.num+1), dim=1))
-                # list_offset.pop(2*self.idx_ref)
-                # list_offset.pop(2*self.idx_ref)
-                # offset = torch.cat(list_offset, dim=1)
-                
                 dep_feat = self._get_dep_feature(feat_result)
-                if k==1:
-                    off_aff = torch.cat([offset, aff], dim=1)
-                    off_aff_feat = self._get_off_aff_feature(off_aff)
-    
-                off_aff_feat = self.GRU(h=off_aff_feat, x=dep_feat)
                 
-                off_aff = self._off_aff_head(off_aff_feat)
-                off_aff = self._clip_as(off_aff, self.args.patch_height, self.args.patch_width)
-                offset = off_aff[:,0:16,:,:]
-                offset = self._off_insert(offset)
-                aff = off_aff[:,16:24,:,:]
-                aff = self._affinity_normalization(aff)
+                if k == 1:
+                    aff_feat = self._get_aff_feature(aff)
+    
+                aff_feat = self.GRU(h=aff_feat, x=dep_feat)
+                
+                aff = self._aff_head(aff_feat)
 
         return feat_result, list_feat, offset, aff, self.aff_scale_const.data
 
@@ -447,9 +418,10 @@ class NLSPNModel(nn.Module):
         # Diffusion
         y, y_inter, offset, aff, aff_const = \
             self.prop_layer(pred_init, guide, confidence, dep, rgb)
-            
-        # Remove negative depth
-        y = torch.clamp(y, min=0)
+          
+        if not self.args.always_clip:
+            # Remove negative depth
+            y = torch.clamp(y, min=0)
 
         output = {'pred': y, 'pred_init': pred_init, 'pred_inter': y_inter,
                   'guidance': guide, 'offset': offset, 'aff': aff,

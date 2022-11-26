@@ -83,46 +83,15 @@ parser.add_argument('--model_name',
                     default='NLSPN',
                     choices=('NLSPN',),
                     help='model name')
-parser.add_argument('--network',
-                    type=str,
-                    default='resnet34',
-                    choices=('resnet18', 'resnet34'),
-                    help='network name')
-parser.add_argument('--from_scratch',
-                    action='store_true',
-                    default=False,
-                    help='train from scratch')
-parser.add_argument('--prop_time',
-                    type=int,
-                    default=18,
-                    help='number of propagation')
 parser.add_argument('--prop_kernel',
                     type=int,
                     default=3,
                     help='propagation kernel size')
-parser.add_argument('--preserve_input',
-                    action='store_true',
-                    default=False,
-                    help='preserve input points by replacement')
-parser.add_argument('--affinity',
-                    type=str,
-                    default='TGASS',
-                    choices=('AS', 'ASS', 'TC', 'TGASS'),
-                    help='affinity type (dynamic pos-neg, dynamic pos, '
-                         'static pos-neg, static pos, none')
 parser.add_argument('--affinity_gamma',
                     type=float,
                     default=0.5,
                     help='affinity gamma initial multiplier '
                          '(gamma = affinity_gamma * number of neighbors')
-parser.add_argument('--conf_prop',
-                    action='store_true',
-                    default=True,
-                    help='confidence for propagation')
-parser.add_argument('--no_conf',
-                    action='store_false',
-                    dest='conf_prop',
-                    help='no confidence for propagation')
 parser.add_argument('--legacy',
                     action='store_true',
                     default=False,
@@ -259,12 +228,47 @@ parser.add_argument('--GRU_input_dim',
                     help="GRU's input dim")
 parser.add_argument('--use_GRU',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help="use GRU")
 parser.add_argument('--zero_init_aff',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help="zero init aff")
+parser.add_argument('--network',
+                    type=str,
+                    default='resnet18',
+                    choices=('resnet18', 'resnet34'),
+                    help='network name')
+parser.add_argument('--from_scratch',
+                    action='store_true',
+                    default=False,
+                    help='train from scratch')
+parser.add_argument('--prop_time',
+                    type=int,
+                    default=12,
+                    help='number of propagation')
+parser.add_argument('--preserve_input',
+                    action='store_true',
+                    default=True,
+                    help='preserve input points by replacement')
+parser.add_argument('--always_clip',
+                    action='store_true',
+                    default=True,
+                    help='always clip')
+parser.add_argument('--affinity',
+                    type=str,
+                    default='TGASS',
+                    choices=('AS', 'ASS', 'TC', 'TGASS'),
+                    help='affinity type (dynamic pos-neg, dynamic pos, '
+                         'static pos-neg, static pos, none')
+parser.add_argument('--conf_prop',
+                    action='store_true',
+                    default=True,
+                    help='confidence for propagation')
+parser.add_argument('--no_conf',
+                    action='store_false',
+                    dest='conf_prop',
+                    help='no confidence for propagation')
 
 
 args = parser.parse_args()
