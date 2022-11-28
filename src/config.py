@@ -143,6 +143,10 @@ parser.add_argument('--test_crop',
                     action='store_true',
                     default=False,
                     help='crop for test')
+parser.add_argument('--test_pipeline',
+                    action='store_true',
+                    default=False,
+                    help='test pipeline')
 
 
 # Summary
@@ -249,8 +253,12 @@ parser.add_argument('--preserve_input',
                     help='preserve input points by replacement')
 parser.add_argument('--always_clip',
                     action='store_true',
-                    default=True,
+                    default=False,
                     help='always clip')
+parser.add_argument('--prop_kernel',
+                    type=int,
+                    default=3,
+                    help='propagation kernel size')
 parser.add_argument('--affinity',
                     type=str,
                     default='TGASS',
@@ -261,14 +269,7 @@ parser.add_argument('--conf_prop',
                     action='store_true',
                     default=True,
                     help='confidence for propagation')
-parser.add_argument('--no_conf',
-                    action='store_false',
-                    dest='conf_prop',
-                    help='no confidence for propagation')
-parser.add_argument('--prop_kernel',
-                    type=int,
-                    default=3,
-                    help='propagation kernel size')
+
 
 args = parser.parse_args()
 

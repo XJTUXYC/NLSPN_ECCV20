@@ -177,7 +177,7 @@ def train(gpu, args):
     if args.warm_up:
         warm_up_cnt = 0.0
         warm_up_max_cnt = len(loader_train)+1.0
-
+    
     for epoch in range(1, args.epochs+1):
         # Train
         net.train()
@@ -204,8 +204,9 @@ def train(gpu, args):
 
         for batch, sample in enumerate(loader_train):
             
-            # if batch == epoch:
-            #     break
+            if args.test_pipeline:
+                if batch == 1:
+                    break
             
             sample = {key: val.cuda(gpu) for key, val in sample.items()
                       if val is not None}
@@ -290,6 +291,11 @@ def train(gpu, args):
             log_loss = 0.0
 
         for batch, sample in enumerate(loader_val):
+            
+            if args.test_pipeline:
+                if batch == 1:
+                    break
+            
             sample = {key: val.cuda(gpu) for key, val in sample.items()
                       if val is not None}
 
@@ -380,6 +386,11 @@ def test(args):
     t_total = 0
 
     for batch, sample in enumerate(loader_test):
+        
+        if args.test_pipeline:
+            if batch == 1:
+                break
+        
         sample = {key: val.cuda() for key, val in sample.items()
                   if val is not None}
 
@@ -429,7 +440,7 @@ def main(args):
                     process.terminate()
                 process.join()
 
-            args.pretrain = '{}/model_{:05d}.pt'.format(args.save_dir,
+            args.pretrain = '{}/{:03d}.pt'.format(args.save_dir,
                                                         args.epochs)
 
     test(args)

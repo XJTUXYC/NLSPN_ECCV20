@@ -134,7 +134,8 @@ class NYU(BaseDataset):
             K = self.K.clone()
             K[0] = K[0] * _scale
             K[1] = K[1] * _scale
-        else:
+            
+        else: # val or test
             t_rgb = T.Compose([
                 T.Resize(self.height),
                 T.CenterCrop(self.crop_size),

@@ -42,11 +42,11 @@ def get_resnet34(pretrained=True):
     return net
 
 
-def conv_bn_relu(ch_in, ch_out, kernel, stride=1, padding=0, bn=True,
-                 relu=True, zero_init=False):
+def conv_bn_relu(ch_in, ch_out, kernel, stride=1, bn=True, relu=True, zero_init=False):
     assert (kernel % 2) == 1, \
         'only odd kernel is supported but kernel = {}'.format(kernel)
-
+    padding = int((kernel-1) / 2)
+    
     layers = []
     
     conv = nn.Conv2d(ch_in, ch_out, kernel, stride, padding, bias=not bn)
@@ -54,6 +54,7 @@ def conv_bn_relu(ch_in, ch_out, kernel, stride=1, padding=0, bn=True,
         conv.weight.data.zero_()
         if not bn:
             conv.bias.data.zero_()
+            
     layers.append(conv)
     
     if bn:

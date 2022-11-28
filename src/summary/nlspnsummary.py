@@ -182,7 +182,6 @@ class NLSPNSummary(BaseSummary):
                 pred.save(path_save_pred)
             else:
                 # Parse data
-                guidance = output['guidance'].data.cpu().numpy()
                 offset = output['offset'].data.cpu().numpy()
                 aff = output['aff'].data.cpu().numpy()
                 gamma = output['gamma'].data.cpu().numpy()
@@ -261,7 +260,6 @@ class NLSPNSummary(BaseSummary):
                         self.path_output, k)
                     list_feat[k].save(path_save_inter)
 
-                np.save('{}/guidance.npy'.format(self.path_output), guidance)
                 np.save('{}/offset.npy'.format(self.path_output), offset)
                 np.save('{}/aff.npy'.format(self.path_output), aff)
                 np.save('{}/gamma.npy'.format(self.path_output), gamma)
