@@ -119,17 +119,28 @@ class NLSPNModel(nn.Module):
         if self.args.use_GRU:
             self.GRU = ConvGRU(args)
             
-            self.encode_aff0 = conv_bn_relu(self.num_neighbors+1, 16, kernel=3, stride=2, bn=False)
-            self.encode_aff1 = conv_bn_relu(16, int(args.GRU_hidden_dim/2), kernel=3, stride=2, bn=False)
-            self.encode_aff2 = conv_bn_relu(int(args.GRU_hidden_dim/2), args.GRU_hidden_dim, kernel=3, stride=2, bn=False, relu=False)
+            # TODO: delet it
+            self.encode_aff = nn.Sequential(
+                conv_bn_relu(self.num_neighbors+1, 16, kernel=3, stride=2, bn=False),
+                conv_bn_relu(16, int(args.GRU_hidden_dim/2), kernel=3, stride=2, bn=False),
+                conv_bn_relu(int(args.GRU_hidden_dim/2), args.GRU_hidden_dim, kernel=3, stride=2, bn=False, relu=False),
+                nn.Tanh()
+            )
             
-            self.encode_dep0 = conv_bn_relu(1, 16, kernel=3, stride=2, bn=False)
-            self.encode_dep1 = conv_bn_relu(16, int(args.GRU_input_dim/2), kernel=3, stride=2, bn=False)
-            self.encode_dep2 = conv_bn_relu(int(args.GRU_input_dim/2), args.GRU_input_dim, kernel=3, stride=2, bn=False)
+            self.encode_dep = nn.Sequential(
+                conv_bn_relu(1, 16, kernel=3, stride=2, bn=False),
+                conv_bn_relu(16, int(args.GRU_input_dim/2), kernel=3, stride=2, bn=False),
+                conv_bn_relu(int(args.GRU_input_dim/2), args.GRU_input_dim, kernel=3, stride=2, bn=False)
+            )
             
-            self.aff_head0 = convt_bn_relu(args.GRU_hidden_dim, int(args.GRU_hidden_dim/2), kernel=3, stride=2, padding=1, output_padding=1, bn=False)
-            self.aff_head1 = convt_bn_relu(int(args.GRU_hidden_dim/2), 16, kernel=3, stride=2, padding=1, output_padding=1, bn=False)
-            self.aff_head2 = convt_bn_relu(16, self.num_neighbors, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            self.decode_aff = nn.Sequential(
+                convt_bn_relu(args.GRU_hidden_dim, int(args.GRU_hidden_dim/2), kernel=3, stride=2, padding=1, output_padding=1, bn=False),
+                convt_bn_relu(int(args.GRU_hidden_dim/2), 16, kernel=3, stride=2, padding=1, output_padding=1, bn=False),
+                convt_bn_relu(16, self.num_neighbors, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            )
+
+        if self.args.use_S2D:
+            self.S2D = S2D()
 
         # Set parameter groups
         params = []
@@ -193,32 +204,15 @@ class NLSPNModel(nn.Module):
 
         return feat
     
-    def _get_aff_feature(self, off_aff):
-        aff_feat = self.encode_aff0(off_aff)
-        aff_feat = self.encode_aff1(aff_feat)
-        aff_feat = torch.tanh(self.encode_aff2(aff_feat))
-        
-        return aff_feat
-    
-    def _get_dep_feature(self, dep):   
-        dep = dep / self.args.max_depth
-          
-        dep_feat = self.encode_dep0(dep)
-        dep_feat = self.encode_dep1(dep_feat)
-        dep_feat = self.encode_dep2(dep_feat)
-        
-        return dep_feat
-    
     def _aff_head(self, aff_feat):
-        aff = self.aff_head0(aff_feat)
-        aff = self.aff_head1(aff)
-        aff = self.aff_head2(aff)
+        aff = self.decode_aff(aff_feat)
         
         aff = self._clip_as(aff, self.args.patch_height, self.args.patch_width)
         aff = self._affinity_normalization(aff)
         
         return aff
     
+    # TODO: center clip
     def _clip_as(self, fd, He, We, dim=1):
         # Decoder feature may have additional padding
         _, _, Hd, Wd = fd.shape
@@ -259,7 +253,10 @@ class NLSPNModel(nn.Module):
 
         # Encoding
         fe1_rgb = self.conv1_rgb(rgb) # b*32*H*W
-        fe1_dep = self.conv1_dep(dep) # b*32*H*W
+        if self.args.use_S2D:
+            fe1_dep = self.S2D(dep) # b*32*H*W
+        else:
+            fe1_dep = self.conv1_dep(dep) # b*32*H*W
 
         fe1 = torch.cat((fe1_rgb, fe1_dep), dim=1) # b*64*H*W
 
@@ -340,11 +337,10 @@ class NLSPNModel(nn.Module):
             list_pred.append(new_pred)
             
             if k<self.args.prop_time and self.args.use_GRU:
-                
-                dep_feat = self._get_dep_feature(new_pred)
+                dep_feat = self.encode_dep(new_pred/self.args.max_depth)
                 
                 if k == 1:
-                    aff_feat = self._get_aff_feature(aff)
+                    aff_feat = self.encode_aff(aff)
     
                 aff_feat = self.GRU(h=aff_feat, x=dep_feat)
                 
@@ -379,3 +375,62 @@ class ConvGRU(nn.Module):
 
         h = (1-z) * h + z * q
         return h
+    
+    
+class S2D(nn.Module):
+    def __init__(self):
+        super(S2D, self).__init__()
+
+        self.min_pool_sizes = [3,5,7,9]
+        self.max_pool_sizes = [11,13]
+
+        # Construct min pools
+        self.min_pools = []
+        for s in self.min_pool_sizes:
+            padding = s // 2
+            pool = nn.MaxPool2d(kernel_size=s, stride=1, padding=padding)
+            self.min_pools.append(pool)
+
+        # Construct max pools
+        self.max_pools = []
+        for s in self.max_pool_sizes:
+            padding = s // 2
+            pool = nn.MaxPool2d(kernel_size=s, stride=1, padding=padding)
+            self.max_pools.append(pool)
+
+        in_channels = len(self.min_pool_sizes) + len(self.max_pool_sizes)
+
+        self.pool_convs = nn.Sequential(
+            conv_bn_relu(in_channels, 8, kernel=1, stride=1, bn=False),
+            conv_bn_relu(8, 16, kernel=1, stride=1, bn=False)
+        )
+
+        self.conv = conv_bn_relu(16+1, 32, kernel=3, stride=1, bn=False)
+
+    def forward(self, dep):
+        pool_pyramid = []
+
+        # Use min and max pooling to densify and increase receptive field
+        for pool, s in zip(self.min_pools, self.min_pool_sizes):
+            # Set flag (999) for any zeros and max pool on -z then revert the values
+            z_pool = -pool(torch.where(dep == 0, -999 * torch.ones_like(dep), -dep))
+            # Remove any 999 from the results
+            z_pool = torch.where(z_pool == 999, torch.zeros_like(dep), z_pool)
+
+            pool_pyramid.append(z_pool)
+
+        for pool, s in zip(self.max_pools, self.max_pool_sizes):
+            z_pool = pool(dep)
+
+            pool_pyramid.append(z_pool)
+
+        # Stack max and minpools into pyramid
+        pool_pyramid = torch.cat(pool_pyramid, dim=1)
+
+        # Learn weights for different kernel sizes, and near and far structures
+        dep_feat = self.pool_convs(pool_pyramid)
+
+        dep_feat = torch.cat([dep_feat, dep], dim=1)
+        dep_feat = self.conv(dep_feat)
+
+        return dep_feat

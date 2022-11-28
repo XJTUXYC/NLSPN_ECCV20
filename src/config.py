@@ -230,6 +230,10 @@ parser.add_argument('--use_GRU',
                     action='store_true',
                     default=True,
                     help="use GRU")
+parser.add_argument('--use_S2D',
+                    action='store_true',
+                    default=True,
+                    help="use S2D")
 parser.add_argument('--zero_init_aff',
                     action='store_true',
                     default=True,
