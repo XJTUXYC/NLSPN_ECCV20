@@ -122,20 +122,20 @@ class NLSPNModel(nn.Module):
             # TODO: delet it
             self.encode_aff = nn.Sequential(
                 conv_bn_relu(self.num_neighbors+1, 16, kernel=3, stride=2, bn=False),
-                conv_bn_relu(16, int(args.GRU_hidden_dim/2), kernel=3, stride=2, bn=False),
-                conv_bn_relu(int(args.GRU_hidden_dim/2), args.GRU_hidden_dim, kernel=3, stride=2, bn=False, relu=False),
+                conv_bn_relu(16, 2*args.GRU_hidden_dim, kernel=3, stride=2, bn=False),
+                conv_bn_relu(2*args.GRU_hidden_dim, args.GRU_hidden_dim, kernel=3, stride=2, bn=False, relu=False),
                 nn.Tanh()
             )
             
             self.encode_dep = nn.Sequential(
                 conv_bn_relu(1, 16, kernel=3, stride=2, bn=False),
-                conv_bn_relu(16, int(args.GRU_input_dim/2), kernel=3, stride=2, bn=False),
-                conv_bn_relu(int(args.GRU_input_dim/2), args.GRU_input_dim, kernel=3, stride=2, bn=False)
+                conv_bn_relu(16, 2*args.GRU_input_dim, kernel=3, stride=2, bn=False),
+                conv_bn_relu(2*args.GRU_input_dim, args.GRU_input_dim, kernel=3, stride=2, bn=False)
             )
             
             self.decode_aff = nn.Sequential(
-                convt_bn_relu(args.GRU_hidden_dim, int(args.GRU_hidden_dim/2), kernel=3, stride=2, padding=1, output_padding=1, bn=False),
-                convt_bn_relu(int(args.GRU_hidden_dim/2), 16, kernel=3, stride=2, padding=1, output_padding=1, bn=False),
+                convt_bn_relu(args.GRU_hidden_dim, 2*args.GRU_hidden_dim, kernel=3, stride=2, padding=1, output_padding=1, bn=False),
+                convt_bn_relu(2*args.GRU_hidden_dim, 16, kernel=3, stride=2, padding=1, output_padding=1, bn=False),
                 convt_bn_relu(16, self.num_neighbors, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
             )
 
