@@ -30,7 +30,7 @@ class NLSPNModel(nn.Module):
 
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1    
         
-        self.backbone = BackBone(output_dim=256)
+        self.backbone = BackBone(args, output_dim=256)
         
         self.shared_decoder = SharedDecoder()
         
@@ -108,6 +108,15 @@ class NLSPNModel(nn.Module):
                 convt_bn_relu(16, self.num_neighbors, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
             )
 
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                if m.weight is not None:
+                    nn.init.constant_(m.weight, 1)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+        
         # Set parameter groups
         params = []
         for param in self.named_parameters():
@@ -371,9 +380,11 @@ class S2D(nn.Module):
     
     
 class BackBone(nn.Module):
-    def __init__(self, output_dim=128):
+    def __init__(self, args, output_dim=128):
         super(BackBone, self).__init__()
 
+        self.args = args
+        
         self.conv_rgb = conv_bn_relu(3, 32, kernel=7, stride=1, bn=False)
         self.conv_dep = conv_bn_relu(1, 32, kernel=7, stride=1, bn=False)
         if self.args.use_S2D:
@@ -390,15 +401,6 @@ class BackBone(nn.Module):
 
         # output convolution
         self.outconv = nn.Conv2d(128, output_dim, stride=1, kernel_size=1)
-
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, nn.BatchNorm2d):
-                if m.weight is not None:
-                    nn.init.constant_(m.weight, 1)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
 
     def _make_layer(self, dim, stride=1):
         layer1 = ResidualBlock(self.in_planes, dim, stride=stride)

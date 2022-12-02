@@ -236,7 +236,7 @@ parser.add_argument('--use_S2D',
                     help="use S2D")
 parser.add_argument('--zero_init_aff',
                     action='store_true',
-                    default=True,
+                    default=False,
                     help="zero init aff")
 parser.add_argument('--network',
                     type=str,
