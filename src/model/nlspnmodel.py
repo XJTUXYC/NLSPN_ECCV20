@@ -28,56 +28,25 @@ class NLSPNModel(nn.Module):
         assert (self.args.prop_kernel % 2) == 1, \
             'only odd kernel is supported but k_f = {}'.format(self.args.prop_kernel)
 
-        self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
-
-        # Encoder
-        self.conv1_rgb = conv_bn_relu(3, 32, kernel=3, stride=1, bn=False)
-        self.conv1_dep = conv_bn_relu(1, 32, kernel=3, stride=1, bn=False)
-
-        if self.args.network == 'resnet18':
-            net = get_resnet18(not self.args.from_scratch)
-        elif self.args.network == 'resnet34':
-            net = get_resnet34(not self.args.from_scratch)
-        else:
-            raise NotImplementedError
-
-        # 1/1
-        self.conv2 = net.layer1
-        # 1/2
-        self.conv3 = net.layer2
-        # 1/4
-        self.conv4 = net.layer3
-
-        del net
-
-        # 1/8
-        self.conv5 = conv_bn_relu(256, 256, kernel=3, stride=2)
-
-        # Shared Decoder
-        # 1/4
-        self.dec4 = convt_bn_relu(256, 128, kernel=3, stride=2, padding=1, output_padding=1)
-        # 1/2
-        self.dec3 = convt_bn_relu(128+256, 64, kernel=3, stride=2, padding=1, output_padding=1)
-        # 1/1
-        self.dec2 = convt_bn_relu(64+128, 64, kernel=3, stride=2, padding=1, output_padding=1)
-
+        self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1    
+        
+        self.backbone = BackBone(output_dim=256)
+        
+        self.shared_decoder = SharedDecoder()
+        
         # Init Depth Branch
-        # 1/1
-        self.id_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1)
-        self.id_dec0 = conv_bn_relu(64+64, 1, kernel=3, stride=1, bn=False, relu=True)
+        self.id_dec = conv_bn_relu(64+64, 64, kernel=3, stride=1)
+        self.id_out = conv_bn_relu(64, 1, kernel=3, stride=1, bn=False)
 
         # Off_Aff Branch
-        # 1/1
-        self.off_aff_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1)
-        self.off_aff_dec0 = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        self.off_aff_dec = conv_bn_relu(64+64, 128, kernel=3, stride=1)
+        self.off_aff_out = conv_bn_relu(128, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
 
+        # Confidence Branch
         if self.args.conf_prop:
-            # Confidence Branch
-            # Confidence is shared for propagation and mask generation
-            # 1/1
-            self.cf_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1)
-            self.cf_dec0 = nn.Sequential(
-                nn.Conv2d(64+64, 1, kernel_size=3, stride=1, padding=1),
+            self.cf_dec = conv_bn_relu(64+64, 64, kernel=3, stride=1)
+            self.cf_out = nn.Sequential(
+                nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1),
                 nn.Sigmoid()
             )
 
@@ -139,9 +108,6 @@ class NLSPNModel(nn.Module):
                 convt_bn_relu(16, self.num_neighbors, kernel=3, stride=2, padding=1, output_padding=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
             )
 
-        if self.args.use_S2D:
-            self.S2D = S2D()
-
         # Set parameter groups
         params = []
         for param in self.named_parameters():
@@ -153,24 +119,6 @@ class NLSPNModel(nn.Module):
         self.param_groups = [
             {'params': params, 'lr': self.args.lr}
         ]
-
-    def _concat(self, fd, fe, dim=1):
-        # Decoder feature may have additional padding
-        _, _, Hd, Wd = fd.shape
-        _, _, He, We = fe.shape
-
-        # Remove additional padding
-        if Hd > He:
-            h = Hd - He
-            fd = fd[:, :, :-h, :]
-
-        if Wd > We:
-            w = Wd - We
-            fd = fd[:, :, :, :-w]
-
-        f = torch.cat((fd, fe), dim=dim)
-
-        return f
     
     def _affinity_normalization(self, aff):
         if self.args.affinity in ['AS', 'ASS']:
@@ -252,40 +200,26 @@ class NLSPNModel(nn.Module):
         dep = sample['dep']
 
         # Encoding
-        fe1_rgb = self.conv1_rgb(rgb) # b*32*H*W
-        if self.args.use_S2D:
-            fe1_dep = self.S2D(dep) # b*32*H*W
-        else:
-            fe1_dep = self.conv1_dep(dep) # b*32*H*W
-
-        fe1 = torch.cat((fe1_rgb, fe1_dep), dim=1) # b*64*H*W
-
-        fe2 = self.conv2(fe1) # b*64*H*W
-        fe3 = self.conv3(fe2) # b*128*H/2*W/2
-        fe4 = self.conv4(fe3) # b*256*H/4*W/4
-        
-        fe5 = self.conv5(fe4) # b*256*H/8*W/8
+        fe0, fe1, fe2, fe3 = self.backbone(rgb, dep) # 64/1,64/2,96/4,256/8
 
         # Shared Decoding
-        fd4 = self.dec4(fe5) # b*128*H/4*W/4
-        fd3 = self.dec3(self._concat(fd4, fe4)) # b*(128+256)*H/8*W/8 -> b*64*H/4*W/4
-        fd2 = self.dec2(self._concat(fd3, fe3)) # b*(64+128)*H/4*W/4 -> b*64*H/2*W/2
+        fd0 = self.shared_decoder(fe1, fe2, fe3) # b*64*H*W
 
         # Init Depth Decoding
-        id_fd1 = self.id_dec1(self._concat(fd2, fe2)) # b*(64+64)*H*W -> b*64*H*W
-        pred_init = self.id_dec0(self._concat(id_fd1, fe1)) # b*(64+64)*H*W -> b*1*H*W
+        fd0_id = self.id_dec(concat(fd0, fe0)) # b*(64+64)*H*W -> b*64*H*W
+        pred_init = self.id_out(fd0_id) # b*1*H*W
 
         # Off Aff Decoding
-        off_aff_fd1 = self.off_aff_dec1(self._concat(fd2, fe2)) # b*128*H*W -> b*64*H*W
-        off_aff = self.off_aff_dec0(self._concat(off_aff_fd1, fe1)) # b*128*H*W -> b*24*H*W
+        fd0_off_aff = self.off_aff_dec(concat(fd0, fe0)) # b*(64+64)*H*W -> b*128*H*W
+        off_aff = self.off_aff_out(fd0_off_aff) # b*128*H*W -> b*24*H*W
         
         off = off_aff[:, :2*self.num_neighbors, :, :] # b*16*H*W
         aff = off_aff[:, 2*self.num_neighbors:, :, :] # b*8*H*W
 
+        # Confidence Decoding
         if self.args.conf_prop:
-            # Confidence Decoding
-            cf_fd1 = self.cf_dec1(self._concat(fd2, fe2)) # b*128*H*W -> b*32*H*W
-            confidence = self.cf_dec0(self._concat(cf_fd1, fe1)) # b*96*H*W -> b*1*H*W
+            fd0_cf = self.cf_dec(concat(fd0, fe0)) # b*(64+64)*H*W -> b*64*H*W
+            confidence = self.cf_out(fd0_cf) # b*64*H*W -> b*1*H*W
         else:
             confidence = None
 
@@ -401,11 +335,11 @@ class S2D(nn.Module):
         in_channels = len(self.min_pool_sizes) + len(self.max_pool_sizes)
 
         self.pool_convs = nn.Sequential(
-            conv_bn_relu(in_channels, 8, kernel=1, stride=1, bn=False),
-            conv_bn_relu(8, 16, kernel=1, stride=1, bn=False)
+            conv_bn_relu(in_channels, 16, kernel=7, stride=1, bn=False),
+            conv_bn_relu(16, 32-1, kernel=3, stride=1, bn=False)
         )
-
-        self.conv = conv_bn_relu(16+1, 32, kernel=3, stride=1, bn=False)
+        
+        self.conv = conv_bn_relu(32, 32, kernel=3, stride=1, bn=False)
 
     def forward(self, dep):
         pool_pyramid = []
@@ -434,3 +368,78 @@ class S2D(nn.Module):
         dep_feat = self.conv(dep_feat)
 
         return dep_feat
+    
+    
+class BackBone(nn.Module):
+    def __init__(self, output_dim=128):
+        super(BackBone, self).__init__()
+
+        self.conv_rgb = conv_bn_relu(3, 32, kernel=7, stride=1, bn=False)
+        self.conv_dep = conv_bn_relu(1, 32, kernel=7, stride=1, bn=False)
+        if self.args.use_S2D:
+            self.S2D = S2D()
+
+        self.conv_rgb_dep = nn.Conv2d(64, 64, stride=1, kernel_size=1)
+
+        self.in_planes = 64
+        
+        # 1 layer = 2 blocks = 4 convs
+        self.layer1 = self._make_layer(64,  stride=2)
+        self.layer2 = self._make_layer(96, stride=2)
+        self.layer3 = self._make_layer(128, stride=2)
+
+        # output convolution
+        self.outconv = nn.Conv2d(128, output_dim, stride=1, kernel_size=1)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                if m.weight is not None:
+                    nn.init.constant_(m.weight, 1)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+    def _make_layer(self, dim, stride=1):
+        layer1 = ResidualBlock(self.in_planes, dim, stride=stride)
+        layer2 = ResidualBlock(dim, dim, stride=1)
+        layers = (layer1, layer2)
+        
+        self.in_planes = dim
+        return nn.Sequential(*layers)
+
+    def forward(self, rgb, dep):
+        fe0_rgb = self.conv_rgb(rgb) # b*32*H*W
+        if self.args.use_S2D:
+            fe0_dep = self.S2D(dep) # b*32*H*W
+        else:
+            fe0_dep = self.conv_dep(dep) # b*32*H*W
+
+        fe0 = self.conv_rgb_dep(torch.cat((fe0_rgb, fe0_dep), dim=1)) # b*64*H*W
+        
+        fe1 = self.layer1(fe0) # B*64*W/2*H/2
+        fe2 = self.layer2(fe1) # B*96*W/4*H/4
+        fe3 = self.layer3(fe2) # B*128*W/8*H/8
+
+        fe3 = self.outconv(fe3) # B*256*W/8*H/8
+
+        return fe0, fe1, fe2, fe3
+    
+
+class SharedDecoder(nn.Module):
+    def __init__(self):
+        super(SharedDecoder, self).__init__()
+        
+        self.dec3 = convt_bn_relu(256, 128, kernel=3, stride=2, padding=1, output_padding=1)
+        self.dec2 = convt_bn_relu(128+96, 96, kernel=3, stride=2, padding=1, output_padding=1)
+        self.dec1 = convt_bn_relu(96+64, 64, kernel=3, stride=2, padding=1, output_padding=1)
+
+    def forward(self, fe1, fe2, fe3):
+        fd2 = self.dec3(fe3) # b*128*H/4*W/4
+        fd1 = self.dec2(concat(fd2, fe2)) # b*(128+96)*H/4*W/4 -> b*96*H/2*W/2
+        fd0 = self.dec1(concat(fd1, fe1)) # b*(96+64)*H/2*W/2 -> b*64*H*W
+        
+        return fd0
+    
+    
+
