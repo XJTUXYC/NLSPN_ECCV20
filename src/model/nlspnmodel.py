@@ -35,18 +35,22 @@ class NLSPNModel(nn.Module):
         self.shared_decoder = SharedDecoder()
         
         # Init Depth Branch
-        self.id_dec = conv_bn_relu(64+64, 64, kernel=3, stride=1)
-        self.id_out = conv_bn_relu(64, 1, kernel=3, stride=1, bn=False)
+        self.id_dec = nn.Sequential(
+            conv_bn_relu(64+64, 64, kernel=3, stride=1),
+            conv_bn_relu(64, 1, kernel=3, stride=1, bn=False)
+        )
 
         # Off_Aff Branch
-        self.off_aff_dec = conv_bn_relu(64+64, 128, kernel=3, stride=1)
-        self.off_aff_out = conv_bn_relu(128, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        self.off_aff_dec = nn.Sequential(
+            conv_bn_relu(64+64, 128, kernel=3, stride=1),
+            conv_bn_relu(128, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        )
 
         # Confidence Branch
         if self.args.conf_prop:
-            self.cf_dec = conv_bn_relu(64+64, 64, kernel=3, stride=1)
-            self.cf_out = nn.Sequential(
-                nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1),
+            self.cf_dec = nn.Sequential(
+                conv_bn_relu(64+64, 64, kernel=3, stride=1),
+                conv_bn_relu(64, 1, kernel=3, stride=1, bn=False, relu=False),
                 nn.Sigmoid()
             )
 
@@ -153,11 +157,15 @@ class NLSPNModel(nn.Module):
         
         return aff
     
-    def _propagate_once(self, feat, offset, aff):
-        feat = ModulatedDeformConvFunction.apply(
-            feat, offset, aff, self.w, self.b, self.stride, self.padding,
-            self.dilation, self.groups, self.deformable_groups, self.im2col_step
-        )
+    def _propagate_once(self, feat, offset, aff, conf=None):
+        if conf is not None:
+            feat = ModulatedDeformConvFunction.apply(
+                feat*conf, offset, aff, self.w, self.b, self.stride, self.padding,
+                self.dilation, self.groups, self.deformable_groups, self.im2col_step)
+        else:
+            feat = ModulatedDeformConvFunction.apply(
+                feat, offset, aff, self.w, self.b, self.stride, self.padding,
+                self.dilation, self.groups, self.deformable_groups, self.im2col_step)
 
         return feat
     
@@ -212,75 +220,55 @@ class NLSPNModel(nn.Module):
         fe0, fe1, fe2, fe3 = self.backbone(rgb, dep) # 64/1,64/2,96/4,256/8
 
         # Shared Decoding
-        fd0 = self.shared_decoder(fe1, fe2, fe3) # b*64*H*W
+        fd0 = self.shared_decoder(fe0, fe1, fe2, fe3) # b*64*H*W
 
         # Init Depth Decoding
-        fd0_id = self.id_dec(concat(fd0, fe0)) # b*(64+64)*H*W -> b*64*H*W
-        pred_init = self.id_out(fd0_id) # b*1*H*W
+        init_dep = self.id_dec(fd0) # b*1*H*W
+        assert init_dep.shape == dep.shape
+        
+        if self.args.preserve_input:
+            mask_fix = torch.sum(dep > 0.0, dim=1, keepdim=True).detach()
+            mask_fix = (mask_fix > 0.0).type_as(dep)
+            init_dep = (1.0 - mask_fix) * init_dep + mask_fix * dep
+            
+        if self.args.always_clip:
+            init_dep = torch.clamp(init_dep, min=0)
 
         # Off Aff Decoding
-        fd0_off_aff = self.off_aff_dec(concat(fd0, fe0)) # b*(64+64)*H*W -> b*128*H*W
-        off_aff = self.off_aff_out(fd0_off_aff) # b*128*H*W -> b*24*H*W
+        off_aff = self.off_aff_dec(fd0) # b*24*H*W
         
         off = off_aff[:, :2*self.num_neighbors, :, :] # b*16*H*W
+        off = self._off_insert(off) # b*18*H*W
         aff = off_aff[:, 2*self.num_neighbors:, :, :] # b*8*H*W
+        aff = self._affinity_normalization(aff) # b*9*H*W
 
         # Confidence Decoding
         if self.args.conf_prop:
-            fd0_cf = self.cf_dec(concat(fd0, fe0)) # b*(64+64)*H*W -> b*64*H*W
-            confidence = self.cf_out(fd0_cf) # b*64*H*W -> b*1*H*W
+            confidence = self.cf_dec(fd0) # b*1*H*W
+            if self.args.preserve_input:
+                confidence = (1.0 - mask_fix) * confidence + mask_fix
         else:
             confidence = None
 
-        # Diffusion
-        assert self.ch_f == pred_init.shape[1]
-
-        if self.args.conf_prop:
-            assert confidence is not None
-
-        off = self._off_insert(off) # b*18*H*W
-        aff = self._affinity_normalization(aff) # b*9*H*W
-
         # Propagation
-        if self.args.preserve_input:
-            assert pred_init.shape == dep.shape
-            mask_fix = torch.sum(dep > 0.0, dim=1, keepdim=True).detach()
-            mask_fix = (mask_fix > 0.0).type_as(dep)
-            
-            if confidence is not None:
-                confidence = (1.0 - mask_fix) * confidence + mask_fix
-
-        new_pred = pred_init
-
-        list_pred = []
+        new_dep = init_dep
+        list_dep = []
 
         for k in range(1, self.args.prop_time + 1):
-            if k == 1:
-                if self.args.preserve_input:
-                    # Input preservation for each iteration
-                    new_pred = (1.0 - mask_fix) * new_pred + mask_fix * dep
-                
-                if self.args.always_clip:
-                    # Remove negative depth
-                    new_pred = torch.clamp(new_pred, min=0)
-                
-            if confidence is not None:
-                new_pred = self._propagate_once(new_pred*confidence, off, aff)
-            else:
-                new_pred = self._propagate_once(new_pred, off, aff)
+            # DCN
+            new_dep = self._propagate_once(new_dep, off, aff, confidence)
 
             if self.args.preserve_input:
-                # Input preservation for each iteration
-                new_pred = (1.0 - mask_fix) * new_pred + mask_fix * dep
+                new_dep = (1.0 - mask_fix) * new_dep + mask_fix * dep
                 
             if self.args.always_clip:
-                # Remove negative depth
-                new_pred = torch.clamp(new_pred, min=0)
+                new_dep = torch.clamp(new_dep, min=0)
                                                      
-            list_pred.append(new_pred)
+            list_dep.append(new_dep)
             
+            # GRU
             if k<self.args.prop_time and self.args.use_GRU:
-                dep_feat = self.encode_dep(new_pred/self.args.max_depth)
+                dep_feat = self.encode_dep(new_dep/self.args.max_depth)
                 
                 if k == 1:
                     aff_feat = self.encode_aff(aff)
@@ -290,10 +278,9 @@ class NLSPNModel(nn.Module):
                 aff = self._aff_head(aff_feat)
           
         if not self.args.always_clip:
-            # Remove negative depth
-            new_pred = torch.clamp(new_pred, min=0)
+            new_dep = torch.clamp(new_dep, min=0)
 
-        output = {'pred': new_pred, 'pred_init': pred_init, 'pred_inter': list_pred,
+        output = {'pred': new_dep, 'pred_init': init_dep, 'pred_inter': list_dep,
                   'offset': off, 'aff': aff,
                   'gamma': self.aff_scale_const.data, 'confidence': confidence}
 
@@ -436,11 +423,12 @@ class SharedDecoder(nn.Module):
         self.dec2 = convt_bn_relu(128+96, 96, kernel=3, stride=2, padding=1, output_padding=1)
         self.dec1 = convt_bn_relu(96+64, 64, kernel=3, stride=2, padding=1, output_padding=1)
 
-    def forward(self, fe1, fe2, fe3):
+    def forward(self, fe0, fe1, fe2, fe3):
         fd2 = self.dec3(fe3) # b*128*H/4*W/4
         fd1 = self.dec2(concat(fd2, fe2)) # b*(128+96)*H/4*W/4 -> b*96*H/2*W/2
         fd0 = self.dec1(concat(fd1, fe1)) # b*(96+64)*H/2*W/2 -> b*64*H*W
         
+        fd0 = concat(fd0, fe0) # b*(64+64)*H*W
         return fd0
     
     
