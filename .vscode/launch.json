@@ -21,7 +21,7 @@
                 "--gpus", "3",
                 "--loss", "1.0*L1+1.0*L2",
                 "--epochs", "20",
-                "--batch_size", "8", 
+                "--batch_size", "2", 
                 "--max_depth", "10.0",
                 "--num_sample", "500",
                 "--save", "test",

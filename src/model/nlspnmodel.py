@@ -17,6 +17,7 @@ from .common import *
 from .modulated_deform_conv_func import ModulatedDeformConvFunction
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class NLSPNModel(nn.Module):
@@ -69,7 +70,10 @@ class NLSPNModel(nn.Module):
         # Off_Aff Branch
         # 1/1
         self.off_aff_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1)
-        self.off_aff_dec0 = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        if self.args.offset:
+            self.off_aff_dec0 = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        else:
+            self.off_aff_dec0 = conv_bn_relu(64+64, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
 
         if self.args.conf_prop:
             # Confidence Branch
@@ -197,11 +201,28 @@ class NLSPNModel(nn.Module):
         return aff
     
     def _propagate_once(self, feat, offset, aff):
-        feat = ModulatedDeformConvFunction.apply(
-            feat, offset, aff, self.w, self.b, self.stride, self.padding,
-            self.dilation, self.groups, self.deformable_groups, self.im2col_step
-        )
-
+        if offset is not None:
+            feat = ModulatedDeformConvFunction.apply(
+                feat, offset, aff, self.w, self.b, self.stride, self.padding,
+                self.dilation, self.groups, self.deformable_groups, self.im2col_step
+            )
+        else:
+            feat = F.pad(feat, (1,1,1,1))
+            _, _, H, W = feat.size()
+            feat_list = []
+            feat_list.append(feat[:, :, 0:H-2, 0:W-2])
+            feat_list.append(feat[:, :, 0:H-2, 1:W-1])
+            feat_list.append(feat[:, :, 0:H-2, 2:W-0])
+            feat_list.append(feat[:, :, 1:H-1, 0:W-2])
+            feat_list.append(feat[:, :, 1:H-1, 1:W-1])
+            feat_list.append(feat[:, :, 1:H-1, 2:W-0])
+            feat_list.append(feat[:, :, 2:H-0, 0:W-2])
+            feat_list.append(feat[:, :, 2:H-0, 1:W-1])
+            feat_list.append(feat[:, :, 2:H-0, 2:W-0])
+            feat = torch.cat(feat_list, dim=1)
+            feat = feat * aff
+            feat = torch.sum(feat, dim=1, keepdim=True)
+            
         return feat
     
     def _aff_head(self, aff_feat):
@@ -279,8 +300,12 @@ class NLSPNModel(nn.Module):
         off_aff_fd1 = self.off_aff_dec1(self._concat(fd2, fe2)) # b*128*H*W -> b*64*H*W
         off_aff = self.off_aff_dec0(self._concat(off_aff_fd1, fe1)) # b*128*H*W -> b*24*H*W
         
-        off = off_aff[:, :2*self.num_neighbors, :, :] # b*16*H*W
-        aff = off_aff[:, 2*self.num_neighbors:, :, :] # b*8*H*W
+        if self.args.offset:
+            off = off_aff[:, :2*self.num_neighbors, :, :] # b*16*H*W
+            aff = off_aff[:, 2*self.num_neighbors:, :, :] # b*8*H*W
+        else:
+            off = None
+            aff = off_aff
 
         if self.args.conf_prop:
             # Confidence Decoding
@@ -295,7 +320,8 @@ class NLSPNModel(nn.Module):
         if self.args.conf_prop:
             assert confidence is not None
 
-        off = self._off_insert(off) # b*18*H*W
+        if off is not None:
+            off = self._off_insert(off) # b*18*H*W
         aff = self._affinity_normalization(aff) # b*9*H*W
 
         # Propagation
