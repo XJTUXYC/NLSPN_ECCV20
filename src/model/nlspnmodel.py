@@ -54,36 +54,36 @@ class NLSPNModel(nn.Module):
         # 1/8
         self.conv5 = conv_bn_relu(256, 256, kernel=3, stride=2)
 
-        # Shared Decoder
-        # 1/4
-        self.dec4 = convt_bn_relu(256, 128, kernel=3, stride=2, padding=1, output_padding=1)
-        # 1/2
-        self.dec3 = convt_bn_relu(128+256, 64, kernel=3, stride=2, padding=1, output_padding=1)
-        # 1/1
-        self.dec2 = convt_bn_relu(64+128, 64, kernel=3, stride=2, padding=1, output_padding=1)
+        # # Shared Decoder
+        # # 1/4
+        # self.dec4 = convt_bn_relu(256, 128, kernel=3, stride=2, padding=1, output_padding=1)
+        # # 1/2
+        # self.dec3 = convt_bn_relu(128+256, 64, kernel=3, stride=2, padding=1, output_padding=1)
+        # # 1/1
+        # self.dec2 = convt_bn_relu(64+128, 64, kernel=3, stride=2, padding=1, output_padding=1)
 
-        # Init Depth Branch
-        # 1/1
-        self.id_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1)
-        self.id_dec0 = conv_bn_relu(64+64, 1, kernel=3, stride=1, bn=False, relu=True)
+        # # Init Depth Branch
+        # # 1/1
+        # self.id_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1)
+        # self.id_dec0 = conv_bn_relu(64+64, 1, kernel=3, stride=1, bn=False, relu=True)
 
-        # Off_Aff Branch
-        # 1/1
-        self.off_aff_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1)
-        if self.args.offset:
-            self.off_aff_dec0 = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
-        else:
-            self.off_aff_dec0 = conv_bn_relu(64+64, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        # # Off_Aff Branch
+        # # 1/1
+        # self.off_aff_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1)
+        # if self.args.offset:
+        #     self.off_aff_dec0 = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        # else:
+        #     self.off_aff_dec0 = conv_bn_relu(64+64, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
 
-        if self.args.conf_prop:
-            # Confidence Branch
-            # Confidence is shared for propagation and mask generation
-            # 1/1
-            self.cf_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1)
-            self.cf_dec0 = nn.Sequential(
-                nn.Conv2d(64+64, 1, kernel_size=3, stride=1, padding=1),
-                nn.Sigmoid()
-            )
+        # if self.args.conf_prop:
+        #     # Confidence Branch
+        #     # Confidence is shared for propagation and mask generation
+        #     # 1/1
+        #     self.cf_dec1 = conv_bn_relu(64+64, 64, kernel=3, stride=1)
+        #     self.cf_dec0 = nn.Sequential(
+        #         nn.Conv2d(64+64, 1, kernel_size=3, stride=1, padding=1),
+        #         nn.Sigmoid()
+        #     )
 
         self.ch_f = 1
         
