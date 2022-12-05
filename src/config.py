@@ -272,7 +272,7 @@ parser.add_argument('--conf_prop',
 parser.add_argument('--offset',
                     action='store_true',
                     default=False,
-                    help='confidence for propagation')
+                    help='use offset')
 parser.add_argument('--lr',
                     type=float,
                     default=0.001,

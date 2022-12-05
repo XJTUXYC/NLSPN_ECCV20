@@ -13,18 +13,18 @@
             "justMyCode": true,
             "cwd": "${workspaceFolder}/src",
             "args": [
-                "--dir_data", "/data3/XYC/datasets/nyudepthv2/",
                 "--data_name", "NYU", 
                 "--split_json", "../data_json/nyu.json",
                 "--patch_height", "228",
                 "--patch_width", "304",
-                "--gpus", "3",
-                "--loss", "1.0*L1+1.0*L2",
-                "--epochs", "20",
-                "--batch_size", "2", 
+                "--loss", "1.0*L1+1.0*L2", 
                 "--max_depth", "10.0",
                 "--num_sample", "500",
                 "--save", "test",
+                "--dir_data", "/data3/XYC/datasets/nyudepthv2/",
+                "--gpus", "3",
+                "--batch_size", "8",
+                "--epochs", "20",
                 // "--test_pipeline"
             ]
         },
