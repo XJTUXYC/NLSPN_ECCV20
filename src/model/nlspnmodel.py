@@ -207,7 +207,7 @@ class NLSPNModel(nn.Module):
                 self.dilation, self.groups, self.deformable_groups, self.im2col_step
             )
         else:
-            feat = F.pad(feat, (1,1,1,1))
+            feat = F.pad(feat, (1,1,1,1), mode="replicate")
             _, _, H, W = feat.size()
             feat_list = []
             feat_list.append(feat[:, :, 0:H-2, 0:W-2])

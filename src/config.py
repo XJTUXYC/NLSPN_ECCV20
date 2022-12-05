@@ -157,10 +157,6 @@ parser.add_argument('--num_summary',
 
 
 # Optimizer
-parser.add_argument('--lr',
-                    type=float,
-                    default=0.001,
-                    help='learning rate')
 parser.add_argument('--decay',
                     type=str,
                     default='10,15,20',
@@ -277,6 +273,10 @@ parser.add_argument('--offset',
                     action='store_true',
                     default=False,
                     help='confidence for propagation')
+parser.add_argument('--lr',
+                    type=float,
+                    default=0.001,
+                    help='learning rate')
 
 
 args = parser.parse_args()
