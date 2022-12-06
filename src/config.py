@@ -216,11 +216,11 @@ parser.add_argument('--save_result_only',
 # GRU
 parser.add_argument('--GRU_hidden_dim',
                     type=int,
-                    default=128,
+                    default=64,
                     help="GRU's hidden dim")
 parser.add_argument('--GRU_input_dim',
                     type=int,
-                    default=128,
+                    default=64,
                     help="GRU's input dim")
 parser.add_argument('--use_GRU',
                     action='store_true',
@@ -249,7 +249,7 @@ parser.add_argument('--prop_time',
                     help='number of propagation')
 parser.add_argument('--preserve_input',
                     action='store_true',
-                    default=True,
+                    default=False,
                     help='preserve input points by replacement')
 parser.add_argument('--always_clip',
                     action='store_true',
@@ -267,7 +267,7 @@ parser.add_argument('--affinity',
                          'static pos-neg, static pos, none')
 parser.add_argument('--conf_prop',
                     action='store_true',
-                    default=True,
+                    default=False,
                     help='confidence for propagation')
 parser.add_argument('--offset',
                     action='store_true',
