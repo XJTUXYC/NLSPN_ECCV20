@@ -59,7 +59,7 @@ class NLSPNModel(nn.Module):
         
         self.aff_dec = conv_bn_relu(1, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
         
-        self.dep_dec = conv_bn_relu(64, 256, kernel=3, stride=1)
+        self.dep_dec = conv_bn_relu(args.GRU_input_dim, 256, kernel=3, stride=1)
 
         # Decoder
         self.dec4 = convt_bn_relu(256, 128, kernel=3, stride=2, padding=1, output_padding=1)
@@ -263,8 +263,8 @@ class NLSPNModel(nn.Module):
         
         fe5 = self.conv5(fe4) # b*256*H/8*W/8
         
-        fe5_dep = self.dep_conv(fe5) # b*64*H/8*W/8
-        fe5_aff = self.aff_conv(fe5) # b*64*H/8*W/8
+        fe5_dep = self.dep_conv(fe5) # b*32*H/8*W/8
+        fe5_aff = self.aff_conv(fe5) # b*32*H/8*W/8
 
         for k in range(1, self.args.prop_time + 1):
             fe5_dep = self._feat_propagate_once(fe5_dep, fe5_aff)
