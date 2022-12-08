@@ -214,14 +214,6 @@ parser.add_argument('--save_result_only',
                     help='save result images only with submission format')
 
 # GRU
-parser.add_argument('--GRU_hidden_dim',
-                    type=int,
-                    default=32,
-                    help="GRU's hidden dim")
-parser.add_argument('--GRU_input_dim',
-                    type=int,
-                    default=32,
-                    help="GRU's input dim")
 parser.add_argument('--use_GRU',
                     action='store_true',
                     default=True,
@@ -230,6 +222,12 @@ parser.add_argument('--use_S2D',
                     action='store_true',
                     default=True,
                     help="use S2D")
+parser.add_argument('--GRU0_dim',
+                    type=str,
+                    default=32)
+parser.add_argument('--GRU1_dim',
+                    type=str,
+                    default=128)
 parser.add_argument('--zero_init_aff',
                     action='store_true',
                     default=True,
@@ -243,17 +241,21 @@ parser.add_argument('--from_scratch',
                     action='store_true',
                     default=False,
                     help='train from scratch')
-parser.add_argument('--prop_time',
+parser.add_argument('--prop_time0',
                     type=int,
-                    default=6,
-                    help='number of propagation')
+                    default=3,
+                    help='number of propagation0')
+parser.add_argument('--prop_time1',
+                    type=int,
+                    default=9,
+                    help='number of propagation1')
 parser.add_argument('--preserve_input',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help='preserve input points by replacement')
 parser.add_argument('--always_clip',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help='always clip')
 parser.add_argument('--prop_kernel',
                     type=int,
