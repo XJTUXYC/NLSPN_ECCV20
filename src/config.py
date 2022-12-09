@@ -214,20 +214,10 @@ parser.add_argument('--save_result_only',
                     help='save result images only with submission format')
 
 # GRU
-parser.add_argument('--use_GRU',
-                    action='store_true',
-                    default=True,
-                    help="use GRU")
 parser.add_argument('--use_S2D',
                     action='store_true',
                     default=True,
                     help="use S2D")
-parser.add_argument('--GRU0_dim',
-                    type=str,
-                    default=32)
-parser.add_argument('--GRU1_dim',
-                    type=str,
-                    default=128)
 parser.add_argument('--zero_init_aff',
                     action='store_true',
                     default=True,
@@ -273,7 +263,7 @@ parser.add_argument('--conf_prop',
                     help='confidence for propagation')
 parser.add_argument('--offset',
                     action='store_true',
-                    default=False,
+                    default=True,
                     help='confidence for propagation')
 parser.add_argument('--lr',
                     type=float,
