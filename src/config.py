@@ -224,18 +224,18 @@ parser.add_argument('--zero_init_aff',
                     help="zero init aff")
 parser.add_argument('--network',
                     type=str,
-                    default='resnet18',
+                    default='resnet34',
                     choices=('resnet18', 'resnet34'),
                     help='network name')
 parser.add_argument('--from_scratch',
                     action='store_true',
                     default=False,
                     help='train from scratch')
-parser.add_argument('--prop_time0',
+parser.add_argument('--prop_time_feat',
                     type=int,
                     default=3,
                     help='number of propagation0')
-parser.add_argument('--prop_time1',
+parser.add_argument('--prop_time',
                     type=int,
                     default=9,
                     help='number of propagation1')
