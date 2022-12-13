@@ -13,8 +13,8 @@
             "justMyCode": true,
             "cwd": "${workspaceFolder}/src",
             "args": [
-                "--dir_data", "~/datasets/nyudepthv2/",
-                "--gpus", "0",
+                "--dir_data", "/data3/XYC/datasets/nyudepthv2/",
+                "--gpus", "3",
                 "--epochs", "20",
                 "--batch_size", "6", 
                 "--save", "test",

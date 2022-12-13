@@ -13,6 +13,7 @@
 """
 
 
+import time
 from .common import *
 from .modulated_deform_conv_func import ModulatedDeformConvFunction
 import torch
@@ -61,18 +62,18 @@ class NLSPNModel(nn.Module):
 
         # Decoder
         # 1/4
-        self.dec84_dep = convt_bn_relu(128+256, 128, kernel=3, stride=2, padding=1, output_padding=1)
-        self.dec84_aff = convt_bn_relu(128+256, 128, kernel=3, stride=2, padding=1, output_padding=1, relu=False)
+        self.dec84_dep = convt_bn_relu(128+256, args.num_feat_4, kernel=3, stride=2, padding=1, output_padding=1)
+        self.dec84_aff = convt_bn_relu(128+256, args.num_feat_4, kernel=3, stride=2, padding=1, output_padding=1, relu=False)
         
-        self.aff4_gen = conv_bn_relu(128, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        self.aff4_gen = conv_bn_relu(args.num_feat_4, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
         # 1/2        
-        self.dec42_dep = convt_bn_relu(128+256, 64, kernel=3, stride=2, padding=1, output_padding=1)
-        self.dec42_aff = convt_bn_relu(128+256, 64, kernel=3, stride=2, padding=1, output_padding=1, relu=False)
+        self.dec42_dep = convt_bn_relu(args.num_feat_4+256, args.num_feat_2, kernel=3, stride=2, padding=1, output_padding=1)
+        self.dec42_aff = convt_bn_relu(args.num_feat_4+256, args.num_feat_2, kernel=3, stride=2, padding=1, output_padding=1, relu=False)
         
-        self.aff2_gen = conv_bn_relu(64, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        self.aff2_gen = conv_bn_relu(args.num_feat_2, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
         # 1/1
-        self.dec21_dep = convt_bn_relu(64+128, 64, kernel=3, stride=2, padding=1, output_padding=1)
-        self.dec21_aff = convt_bn_relu(64+128, 64, kernel=3, stride=2, padding=1, output_padding=1)
+        self.dec21_dep = convt_bn_relu(args.num_feat_2+128, 64, kernel=3, stride=2, padding=1, output_padding=1)
+        self.dec21_aff = convt_bn_relu(args.num_feat_2+128, 64, kernel=3, stride=2, padding=1, output_padding=1)
         
         self.dec11_dep = conv_bn_relu(64+64, 64, kernel=3, stride=1)
         self.dec11_pred = conv_bn_relu(64+64, 1, kernel=3, stride=1, bn=False)
@@ -118,8 +119,8 @@ class NLSPNModel(nn.Module):
         self.im2col_step = 64
         
         self.GRU8 = ConvGRU(hidden=128, input=128)
-        self.GRU4 = ConvGRU(hidden=128, input=128)
-        self.GRU2 = ConvGRU(hidden=64, input=64)
+        self.GRU4 = ConvGRU(hidden=args.num_feat_4, input=args.num_feat_4)
+        self.GRU2 = ConvGRU(hidden=args.num_feat_2, input=args.num_feat_2)
         self.GRU1 = ConvGRU(hidden=self.num_neighbors, input=1, zero_init=True, tanh=False)
 
         if self.args.use_S2D:
@@ -180,6 +181,7 @@ class NLSPNModel(nn.Module):
             return feat
         
         else:
+            # TODO: Faster!
             feat = F.pad(feat, (1,1,1,1), mode="replicate")
             _, _, H, W = feat.size()
             new_feat =  feat[:, :, 0:H-2, 0:W-2] * torch.unsqueeze(aff[:, 0, :, :], dim=1)
@@ -249,7 +251,8 @@ class NLSPNModel(nn.Module):
         
         fe8_dep = self.enc88_dep(fe8) # b*128*H/8*W/8
         fe8_aff = F.tanh(self.enc88_aff(fe8)) # b*128*H/8*W/8
-
+        
+        # time_start = time.time()
         for _ in range(self.args.prop_time_feat):
             aff8 = self.aff8_gen(fe8_aff)
             aff8 = self._aff_norm_insert(aff8, 8)
@@ -258,10 +261,13 @@ class NLSPNModel(nn.Module):
             fe8_dep = F.relu(fe8_dep)
             
             fe8_aff = self.GRU8(h=fe8_aff, x=fe8_dep)
+        # time_end=time.time()
+        # print('time cost for GRU8',1000*(time_end-time_start),'ms')
                 
         fd4_dep = self.dec84_dep(torch.cat([fe8_dep, fe8], dim=1)) # b*(128+256)*H/8*W/8 -> b*128*H/4*W/4
         fd4_aff = F.tanh(self.dec84_aff(torch.cat([fe8_aff, fe8], dim=1))) # b*(128+256)*H/8*W/8 -> b*128*H/4*W/4
         
+        # time_start = time.time()
         for _ in range(self.args.prop_time_feat):
             aff4 = self.aff4_gen(fd4_aff)
             aff4 = self._aff_norm_insert(aff4, 4)
@@ -270,10 +276,13 @@ class NLSPNModel(nn.Module):
             fd4_dep = F.relu(fd4_dep)
             
             fd4_aff = self.GRU4(h=fd4_aff, x=fd4_dep)
+        # time_end=time.time()
+        # print('time cost for GRU4',1000*(time_end-time_start),'ms')
         
         fd2_dep = self.dec42_dep(concat(fd4_dep, fe4)) # b*(128+256)*H/4*W/4 -> b*64*H/2*W/2
         fd2_aff = F.tanh(self.dec42_aff(concat(fd4_aff, fe4))) # b*(128+256)*H/4*W/4 -> b*64*H/2*W/2
         
+        # time_start = time.time()
         for _ in range(self.args.prop_time_feat):
             aff2 = self.aff2_gen(fd2_aff)
             aff2 = self._aff_norm_insert(aff2, 2)
@@ -282,6 +291,8 @@ class NLSPNModel(nn.Module):
             fd2_dep = F.relu(fd2_dep)
             
             fd2_aff = self.GRU2(h=fd2_aff, x=fd2_dep)
+        # time_end=time.time()
+        # print('time cost for GRU2',1000*(time_end-time_start),'ms')
         
         fd1_dep = self.dec21_dep(concat(fd2_dep, fe2)) # b*(64+128)*H/2*W/2 -> b*64*H*W
         fd1_aff = self.dec21_aff(concat(fd2_aff, fe2)) # b*(64+128)*H/2*W/2 -> b*64*H*W
@@ -304,6 +315,7 @@ class NLSPNModel(nn.Module):
         aff = self._aff_norm_insert(aff, 1) # b*9*H*W
         off = self._off_insert(off) # b*18*H*W
 
+        # time_start = time.time()
         for k in range(self.args.prop_time):
             pred = self._propagate_once(pred, off, aff)
 
@@ -316,6 +328,8 @@ class NLSPNModel(nn.Module):
                 aff = self._aff_pop(aff) # b*8*H*W
                 aff = self.GRU1(h=aff, x=pred) # b*8*H*W
                 aff = self._aff_norm_insert(aff, 1) # b*9*H*W
+        # time_end=time.time()
+        # print('time cost for GRU1',1000*(time_end-time_start),'ms')
           
         if not self.args.always_clip:
             pred = torch.clamp(pred, min=0)
