@@ -216,63 +216,48 @@ parser.add_argument('--save_result_only',
 # GRU
 parser.add_argument('--prop_kernel',
                     type=int,
-                    default=3,
-                    help='propagation kernel size')
+                    default=3)
 parser.add_argument('--affinity',
                     type=str,
                     default='TGASS',
-                    choices=('AS', 'ASS', 'TC', 'TGASS'),
-                    help='affinity type (dynamic pos-neg, dynamic pos, '
-                         'static pos-neg, static pos, none')
+                    choices=('AS', 'ASS', 'TC', 'TGASS'))
 parser.add_argument('--lr',
                     type=float,
-                    default=0.001,
-                    help='learning rate')
-parser.add_argument('--use_S2D',
-                    default=True,
-                    help="use S2D")
+                    default=0.001)
 parser.add_argument('--zero_init_aff',
-                    default=True,
-                    help="zero init aff")
+                    default=True)
 parser.add_argument('--from_scratch',
-                    default=False,
-                    help='train from scratch')
+                    default=False)
+parser.add_argument('--use_S2D',
+                    default=True)
 parser.add_argument('--preserve_input',
-                    default=True,
-                    help='preserve input points by replacement')
+                    default=True)
 parser.add_argument('--always_clip',
-                    action='store_true',
-                    default=True,
-                    help='always clip')
+                    default=True)
+parser.add_argument('--prop_conf',
+                    default=False)
 parser.add_argument('--num_feat4',
                     type=int,
-                    default=64,
-                    help='number 1/4 feat')
+                    default=64)
 parser.add_argument('--num_feat2',
                     type=int,
-                    default=32,
-                    help='number 1/2 feat')
+                    default=32)
 parser.add_argument('--network',
                     type=str,
                     default='resnet34',
-                    choices=('resnet18', 'resnet34'),
-                    help='network name')
+                    choices=('resnet18', 'resnet34'))
 parser.add_argument('--prop_time8',
                     type=int,
-                    default=3,
-                    help='number of propagation8')
+                    default=3)
 parser.add_argument('--prop_time4',
                     type=int,
-                    default=1,
-                    help='number of propagation4')
+                    default=1)
 parser.add_argument('--prop_time2',
                     type=int,
-                    default=1,
-                    help='number of propagation2')
+                    default=1)
 parser.add_argument('--prop_time1',
                     type=int,
-                    default=3,
-                    help='number of propagation1')
+                    default=3)
 
 args = parser.parse_args()
 

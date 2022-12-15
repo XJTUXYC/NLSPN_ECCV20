@@ -91,6 +91,8 @@ class NLSPNModel(nn.Module):
         
         self.dec11_dep = conv_bn_relu(64+64, 64, kernel=3, stride=1)
         self.dec11_pred = conv_bn_relu(64+64, 1, kernel=3, stride=1, bn=False)
+        if args.prop_conf:
+            self.dec11_conf = nn.Sequential(conv_bn_relu(64+64, 1, kernel=3, stride=1, bn=False, relu=False), nn.Sigmoid())
         
         self.dec11_aff = conv_bn_relu(64+64, 64, kernel=3, stride=1)
         self.dec11_aff_off = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
@@ -299,18 +301,22 @@ class NLSPNModel(nn.Module):
         fd1_dep = self.dec21_dep(concat(fd2_dep, fe2)) # b*(64+128)*H/2*W/2 -> b*64*H*W
         fd1_aff = self.dec21_aff(concat(fd2_aff, fe2)) # b*(64+128)*H/2*W/2 -> b*64*H*W
         
-        # pred
-        # TODO: conf
-        fd1_pred = self.dec11_dep(concat(fd1_dep, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
-        pred = self.dec11_pred(concat(fd1_pred, fe1)) # b*(64+64)*H*W -> b*1*H*W
-        assert pred.shape == dep.shape
+        # pred_conf
+        fd1_pred_conf = self.dec11_dep(concat(fd1_dep, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
+        pred = self.dec11_pred(concat(fd1_pred_conf, fe1)) # b*(64+64)*H*W -> b*1*H*W
         
         if self.args.preserve_input:
             mask_fix = torch.sum(dep > 0.0, dim=1, keepdim=True).detach()
             mask_fix = (mask_fix > 0.0).type_as(dep)
             pred = (1.0 - mask_fix) * pred + mask_fix * dep
+            
         if self.args.always_clip:
             pred = torch.clamp(pred, min=0)
+            
+        if self.args.prop_conf:
+            conf = self.dec11_conf(concat(fd1_pred_conf, fe1)) # b*(64+64)*H*W -> b*1*H*W
+            if self.args.preserve_input:
+                conf = (1.0 - mask_fix) * conf + mask_fix
         
         # aff_off
         fd1_aff_off = self.dec11_aff(concat(fd1_aff, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
@@ -323,7 +329,10 @@ class NLSPNModel(nn.Module):
         # DCSPN
         # time_start = time.time()
         for k in range(self.args.prop_time1):
-            pred = self._propagate_once(pred, off, aff)
+            if self.args.prop_conf:
+                pred = self._propagate_once(pred*conf, off, aff)
+            else:
+                pred = self._propagate_once(pred, off, aff)
 
             if self.args.preserve_input:
                 pred = (1.0 - mask_fix) * pred + mask_fix * dep
@@ -341,7 +350,7 @@ class NLSPNModel(nn.Module):
         if not self.args.always_clip:
             pred = torch.clamp(pred, min=0)
 
-        output = {'pred': pred, 'gamma': self.aff_scale_const1.data}
+        output = {'pred': pred}
 
         return output
     
