@@ -142,8 +142,6 @@ class NLSPNSummary(BaseSummary):
 
         self.add_image(self.mode + '/images', img_total, global_step)
 
-        self.add_scalar('Etc/gamma', output['gamma'], global_step)
-
         self.flush()
 
         # Reset
@@ -170,8 +168,6 @@ class NLSPNSummary(BaseSummary):
                 pred.save(path_save_pred)
             else:
                 # Parse data
-                gamma = output['gamma'].data.cpu().numpy()
-
                 rgb = sample['rgb'].detach()
                 dep = sample['dep'].detach()
                 pred = output['pred'].detach()
@@ -222,5 +218,3 @@ class NLSPNSummary(BaseSummary):
                 pred.save(path_save_pred)
                 pred_gray.save(path_save_pred_gray)
                 gt.save(path_save_gt)
-
-                np.save('{}/gamma.npy'.format(self.path_output), gamma)
