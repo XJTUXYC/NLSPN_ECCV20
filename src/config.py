@@ -214,47 +214,6 @@ parser.add_argument('--save_result_only',
                     help='save result images only with submission format')
 
 # GRU
-parser.add_argument('--use_S2D',
-                    action='store_true',
-                    default=True,
-                    help="use S2D")
-parser.add_argument('--zero_init_aff',
-                    action='store_true',
-                    default=True,
-                    help="zero init aff")
-parser.add_argument('--network',
-                    type=str,
-                    default='resnet18',
-                    choices=('resnet18', 'resnet34'),
-                    help='network name')
-parser.add_argument('--from_scratch',
-                    action='store_true',
-                    default=False,
-                    help='train from scratch')
-parser.add_argument('--prop_time_feat',
-                    type=int,
-                    default=3,
-                    help='number of propagation0')
-parser.add_argument('--prop_time',
-                    type=int,
-                    default=6,
-                    help='number of propagation1')
-parser.add_argument('--num_feat_4',
-                    type=int,
-                    default=128,
-                    help='number 1/4 feat')
-parser.add_argument('--num_feat_2',
-                    type=int,
-                    default=64,
-                    help='number 1/2 feat')
-parser.add_argument('--preserve_input',
-                    action='store_true',
-                    default=True,
-                    help='preserve input points by replacement')
-parser.add_argument('--always_clip',
-                    action='store_true',
-                    default=True,
-                    help='always clip')
 parser.add_argument('--prop_kernel',
                     type=int,
                     default=3,
@@ -269,7 +228,55 @@ parser.add_argument('--lr',
                     type=float,
                     default=0.001,
                     help='learning rate')
-
+parser.add_argument('--use_S2D',
+                    action='store_true',
+                    default=True,
+                    help="use S2D")
+parser.add_argument('--zero_init_aff',
+                    action='store_true',
+                    default=True,
+                    help="zero init aff")
+parser.add_argument('--from_scratch',
+                    action='store_true',
+                    default=False,
+                    help='train from scratch')
+parser.add_argument('--preserve_input',
+                    action='store_true',
+                    default=True,
+                    help='preserve input points by replacement')
+parser.add_argument('--always_clip',
+                    action='store_true',
+                    default=True,
+                    help='always clip')
+parser.add_argument('--num_feat4',
+                    type=int,
+                    default=128,
+                    help='number 1/4 feat')
+parser.add_argument('--num_feat2',
+                    type=int,
+                    default=64,
+                    help='number 1/2 feat')
+parser.add_argument('--network',
+                    type=str,
+                    default='resnet18',
+                    choices=('resnet18', 'resnet34'),
+                    help='network name')
+parser.add_argument('--prop_time8',
+                    type=int,
+                    default=3,
+                    help='number of propagation8')
+parser.add_argument('--prop_time4',
+                    type=int,
+                    default=3,
+                    help='number of propagation4')
+parser.add_argument('--prop_time2',
+                    type=int,
+                    default=3,
+                    help='number of propagation2')
+parser.add_argument('--prop_time1',
+                    type=int,
+                    default=6,
+                    help='number of propagation1')
 
 args = parser.parse_args()
 

@@ -24,18 +24,19 @@ import torch.nn.functional as F
 class NLSPNModel(nn.Module):
     def __init__(self, args):
         super(NLSPNModel, self).__init__()
-
         self.args = args
         
-        assert (self.args.prop_kernel % 2) == 1, \
-            'only odd kernel is supported but k_f = {}'.format(self.args.prop_kernel)
-
+        assert (self.args.prop_kernel % 2) == 1, 'only odd kernel is supported but k_f = {}'.format(self.args.prop_kernel)
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
+        self.idx_ref = self.num_neighbors // 2
 
         # Encoder
         # 1/1
         self.enc11_rgb = conv_bn_relu(3, 32, kernel=3, stride=1, bn=False)
-        self.enc11_dep = conv_bn_relu(1, 32, kernel=3, stride=1, bn=False)
+        if self.args.use_S2D:
+            self.S2D = S2D()
+        else:
+            self.enc11_dep = conv_bn_relu(1, 32, kernel=3, stride=1, bn=False)
 
         if self.args.network == 'resnet18':
             backbone = get_resnet18(not self.args.from_scratch)
@@ -45,63 +46,76 @@ class NLSPNModel(nn.Module):
             raise NotImplementedError
 
         self.enc11 = backbone.layer1
+        
         # 1/2
         self.enc12 = backbone.layer2
+        
         # 1/4
         self.enc24 = backbone.layer3
-
         del backbone
 
         # 1/8
         self.enc48 = conv_bn_relu(256, 256, kernel=3, stride=2)
         
-        self.enc88_dep = conv_bn_relu(256, 128, kernel=3, stride=1)
-        self.enc88_aff = conv_bn_relu(256, 128, kernel=3, stride=1, relu=False)
-        
-        self.aff8_gen = conv_bn_relu(128, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
-
         # Decoder
+        # 1/8
+        self.dec88_dep = conv_bn_relu(256, 128, kernel=3, stride=1)
+        if args.prop_time8 > 0:
+            self.dec88_aff = nn.Sequential(conv_bn_relu(256, 128, kernel=3, stride=1, relu=False), nn.Tanh())
+            self.aff8_gen = conv_bn_relu(128, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            self.GRU8 = ConvGRU(hidden=128, input=128)
+        else:
+            self.dec88_aff = conv_bn_relu(256, 128, kernel=3, stride=1)
+
         # 1/4
-        self.dec84_dep = convt_bn_relu(128+256, args.num_feat_4, kernel=3, stride=2, padding=1, output_padding=1)
-        self.dec84_aff = convt_bn_relu(128+256, args.num_feat_4, kernel=3, stride=2, padding=1, output_padding=1, relu=False)
-        
-        self.aff4_gen = conv_bn_relu(args.num_feat_4, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        self.dec84_dep = convt_bn_relu(128+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
+        if args.prop_time4 > 0:
+            self.dec84_aff = nn.Sequential(convt_bn_relu(128+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
+            self.aff4_gen = conv_bn_relu(args.num_feat4, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            self.GRU4 = ConvGRU(hidden=args.num_feat4, input=args.num_feat4)
+        else:
+            self.dec84_aff = convt_bn_relu(128+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
+            
         # 1/2        
-        self.dec42_dep = convt_bn_relu(args.num_feat_4+256, args.num_feat_2, kernel=3, stride=2, padding=1, output_padding=1)
-        self.dec42_aff = convt_bn_relu(args.num_feat_4+256, args.num_feat_2, kernel=3, stride=2, padding=1, output_padding=1, relu=False)
-        
-        self.aff2_gen = conv_bn_relu(args.num_feat_2, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        self.dec42_dep = convt_bn_relu(args.num_feat4+256, args.num_feat2, kernel=3, stride=2, padding=1, output_padding=1)
+        if args.prop_time2 > 0:
+            self.dec42_aff = nn.Sequential(convt_bn_relu(args.num_feat4+256, args.num_feat2, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
+            self.aff2_gen = conv_bn_relu(args.num_feat2, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            self.GRU2 = ConvGRU(hidden=args.num_feat2, input=args.num_feat2)
+        else:
+            self.dec42_aff = convt_bn_relu(args.num_feat4+256, args.num_feat2, kernel=3, stride=2, padding=1, output_padding=1)
+            
         # 1/1
-        self.dec21_dep = convt_bn_relu(args.num_feat_2+128, 64, kernel=3, stride=2, padding=1, output_padding=1)
-        self.dec21_aff = convt_bn_relu(args.num_feat_2+128, 64, kernel=3, stride=2, padding=1, output_padding=1)
+        self.dec21_dep = convt_bn_relu(args.num_feat2+128, 64, kernel=3, stride=2, padding=1, output_padding=1)
+        self.dec21_aff = convt_bn_relu(args.num_feat2+128, 64, kernel=3, stride=2, padding=1, output_padding=1)
         
         self.dec11_dep = conv_bn_relu(64+64, 64, kernel=3, stride=1)
         self.dec11_pred = conv_bn_relu(64+64, 1, kernel=3, stride=1, bn=False)
         
         self.dec11_aff = conv_bn_relu(64+64, 64, kernel=3, stride=1)
         self.dec11_aff_off = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+        
+        self.GRU1 = ConvGRU(hidden=self.num_neighbors, input=1, zero_init=True, tanh=False)
 
+        # aff_scale_const
+        if self.args.affinity == 'TC':
+            self.aff_scale_const = nn.Parameter(self.num_neighbors * torch.ones(1))
+            self.aff_scale_const.requires_grad = False
+        elif self.args.affinity == 'TGASS':
+            if args.prop_time8 > 0:
+                self.aff_scale_const8 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
+            if args.prop_time4 > 0:
+                self.aff_scale_const4 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
+            if args.prop_time2 > 0:
+                self.aff_scale_const2 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
+            self.aff_scale_const1 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
+        else:
+            self.aff_scale_const = nn.Parameter(torch.ones(1))
+            self.aff_scale_const.requires_grad = False
+
+        # DCN (Dummy parameters for gathering)
         self.ch_f = 1
         
-        # Assume zero offset for center pixels
-        self.idx_ref = self.num_neighbors // 2
-
-        if self.args.affinity in ['AS', 'ASS', 'TC', 'TGASS']:
-            if self.args.affinity == 'TC':
-                self.aff_scale_const = nn.Parameter(self.num_neighbors * torch.ones(1))
-                self.aff_scale_const.requires_grad = False
-            elif self.args.affinity == 'TGASS':
-                self.aff_scale_const8 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
-                self.aff_scale_const4 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
-                self.aff_scale_const2 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
-                self.aff_scale_const1 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
-            else:
-                self.aff_scale_const = nn.Parameter(torch.ones(1))
-                self.aff_scale_const.requires_grad = False
-        else:
-            raise NotImplementedError
-
-        # Dummy parameters for gathering
         self.w = nn.Parameter(torch.ones((self.ch_f, 1, self.args.prop_kernel, self.args.prop_kernel)))
         self.b = nn.Parameter(torch.zeros(self.ch_f))
 
@@ -117,14 +131,6 @@ class NLSPNModel(nn.Module):
         self.groups = self.ch_f
         self.deformable_groups = 1
         self.im2col_step = 64
-        
-        self.GRU8 = ConvGRU(hidden=128, input=128)
-        self.GRU4 = ConvGRU(hidden=args.num_feat_4, input=args.num_feat_4)
-        self.GRU2 = ConvGRU(hidden=args.num_feat_2, input=args.num_feat_2)
-        self.GRU1 = ConvGRU(hidden=self.num_neighbors, input=1, zero_init=True, tanh=False)
-
-        if self.args.use_S2D:
-            self.S2D = S2D()
 
         # Set parameter groups
         params = []
@@ -133,15 +139,10 @@ class NLSPNModel(nn.Module):
                 params.append(param[1])
 
         params = nn.ParameterList(params)
-
-        self.param_groups = [
-            {'params': params, 'lr': self.args.lr}
-        ]
+        self.param_groups = [{'params': params, 'lr': self.args.lr}]
     
     def _aff_norm_insert(self, aff, level):
-        if self.args.affinity in ['AS', 'ASS']:
-            pass
-        elif self.args.affinity == 'TC':
+        if self.args.affinity == 'TC':
             aff = torch.tanh(aff) / self.aff_scale_const
         elif self.args.affinity == 'TGASS':
             if level == 8:
@@ -150,12 +151,10 @@ class NLSPNModel(nn.Module):
                 aff = torch.tanh(aff) / (self.aff_scale_const4 + 1e-8)
             elif level == 2:
                 aff = torch.tanh(aff) / (self.aff_scale_const2 + 1e-8)
-            elif level == 1:
-                aff = torch.tanh(aff) / (self.aff_scale_const1 + 1e-8)
             else:
-                raise NotImplementedError
+                aff = torch.tanh(aff) / (self.aff_scale_const1 + 1e-8)
         else:
-            raise NotImplementedError
+            pass
 
         # Affinity normalization
         aff_abs = torch.abs(aff)
@@ -196,14 +195,6 @@ class NLSPNModel(nn.Module):
             
             return new_feat
     
-    def _aff_head(self, aff_feat):
-        aff = self.gru_de_aff(aff_feat)
-        
-        aff = clip_as(aff, self.args.patch_height, self.args.patch_width)
-        aff = self._aff_norm_insert(aff, 1)
-        
-        return aff
-    
     def _off_insert(self, offset):
         B, _, H, W = offset.shape
         offset = offset.view(B, self.num_neighbors, 2, H, W)
@@ -235,6 +226,7 @@ class NLSPNModel(nn.Module):
         dep = sample['dep']
 
         # Encoding
+        # 1/1
         fe1_rgb = self.enc11_rgb(rgb) # b*32*H*W
         if self.args.use_S2D:
             fe1_dep = self.S2D(dep) # b*32*H*W
@@ -244,16 +236,23 @@ class NLSPNModel(nn.Module):
         fe1 = torch.cat((fe1_rgb, fe1_dep), dim=1) # b*64*H*W
         
         fe1_mix = self.enc11(fe1) # b*64*H*W
+        
+        # 1/2
         fe2 = self.enc12(fe1_mix) # b*128*H/2*W/2
+        
+        # 1/4
         fe4 = self.enc24(fe2) # b*256*H/4*W/4
         
+        # 1/8
         fe8 = self.enc48(fe4) # b*256*H/8*W/8
         
-        fe8_dep = self.enc88_dep(fe8) # b*128*H/8*W/8
-        fe8_aff = F.tanh(self.enc88_aff(fe8)) # b*128*H/8*W/8
+        # Decoding
+        # 1/8
+        fe8_dep = self.dec88_dep(fe8) # b*128*H/8*W/8
+        fe8_aff = self.dec88_aff(fe8) # b*128*H/8*W/8
         
         # time_start = time.time()
-        for _ in range(self.args.prop_time_feat):
+        for _ in range(self.args.prop_time8):
             aff8 = self.aff8_gen(fe8_aff)
             aff8 = self._aff_norm_insert(aff8, 8)
             
@@ -263,12 +262,13 @@ class NLSPNModel(nn.Module):
             fe8_aff = self.GRU8(h=fe8_aff, x=fe8_dep)
         # time_end=time.time()
         # print('time cost for GRU8',1000*(time_end-time_start),'ms')
-                
+        
+        # 1/4
         fd4_dep = self.dec84_dep(torch.cat([fe8_dep, fe8], dim=1)) # b*(128+256)*H/8*W/8 -> b*128*H/4*W/4
-        fd4_aff = F.tanh(self.dec84_aff(torch.cat([fe8_aff, fe8], dim=1))) # b*(128+256)*H/8*W/8 -> b*128*H/4*W/4
+        fd4_aff = self.dec84_aff(torch.cat([fe8_aff, fe8], dim=1)) # b*(128+256)*H/8*W/8 -> b*128*H/4*W/4
         
         # time_start = time.time()
-        for _ in range(self.args.prop_time_feat):
+        for _ in range(self.args.prop_time4):
             aff4 = self.aff4_gen(fd4_aff)
             aff4 = self._aff_norm_insert(aff4, 4)
             
@@ -279,11 +279,12 @@ class NLSPNModel(nn.Module):
         # time_end=time.time()
         # print('time cost for GRU4',1000*(time_end-time_start),'ms')
         
+        # 1/2
         fd2_dep = self.dec42_dep(concat(fd4_dep, fe4)) # b*(128+256)*H/4*W/4 -> b*64*H/2*W/2
-        fd2_aff = F.tanh(self.dec42_aff(concat(fd4_aff, fe4))) # b*(128+256)*H/4*W/4 -> b*64*H/2*W/2
+        fd2_aff = self.dec42_aff(concat(fd4_aff, fe4)) # b*(128+256)*H/4*W/4 -> b*64*H/2*W/2
         
         # time_start = time.time()
-        for _ in range(self.args.prop_time_feat):
+        for _ in range(self.args.prop_time2):
             aff2 = self.aff2_gen(fd2_aff)
             aff2 = self._aff_norm_insert(aff2, 2)
             
@@ -294,9 +295,11 @@ class NLSPNModel(nn.Module):
         # time_end=time.time()
         # print('time cost for GRU2',1000*(time_end-time_start),'ms')
         
+        # 1/1
         fd1_dep = self.dec21_dep(concat(fd2_dep, fe2)) # b*(64+128)*H/2*W/2 -> b*64*H*W
         fd1_aff = self.dec21_aff(concat(fd2_aff, fe2)) # b*(64+128)*H/2*W/2 -> b*64*H*W
         
+        # pred
         fd1_pred = self.dec11_dep(concat(fd1_dep, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
         pred = self.dec11_pred(concat(fd1_pred, fe1)) # b*(64+64)*H*W -> b*1*H*W
         assert pred.shape == dep.shape
@@ -308,6 +311,7 @@ class NLSPNModel(nn.Module):
         if self.args.always_clip:
             pred = torch.clamp(pred, min=0)
         
+        # aff_off
         fd1_aff_off = self.dec11_aff(concat(fd1_aff, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
         aff_off = self.dec11_aff_off(concat(fd1_aff_off, fe1)) # b*(64+64)*H*W -> b*24*H*W
         aff = aff_off[:, :self.num_neighbors, :, :] # b*8*H*W
@@ -315,8 +319,9 @@ class NLSPNModel(nn.Module):
         aff = self._aff_norm_insert(aff, 1) # b*9*H*W
         off = self._off_insert(off) # b*18*H*W
 
+        # DCSPN
         # time_start = time.time()
-        for k in range(self.args.prop_time):
+        for k in range(self.args.prop_time1):
             pred = self._propagate_once(pred, off, aff)
 
             if self.args.preserve_input:
@@ -324,13 +329,14 @@ class NLSPNModel(nn.Module):
             if self.args.always_clip:
                 pred = torch.clamp(pred, min=0)
                                                      
-            if k < self.args.prop_time - 1:
+            if k < self.args.prop_time1 - 1:
                 aff = self._aff_pop(aff) # b*8*H*W
                 aff = self.GRU1(h=aff, x=pred) # b*8*H*W
                 aff = self._aff_norm_insert(aff, 1) # b*9*H*W
         # time_end=time.time()
         # print('time cost for GRU1',1000*(time_end-time_start),'ms')
-          
+        
+        # output
         if not self.args.always_clip:
             pred = torch.clamp(pred, min=0)
 
