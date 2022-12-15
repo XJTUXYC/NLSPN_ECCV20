@@ -300,6 +300,7 @@ class NLSPNModel(nn.Module):
         fd1_aff = self.dec21_aff(concat(fd2_aff, fe2)) # b*(64+128)*H/2*W/2 -> b*64*H*W
         
         # pred
+        # TODO: conf
         fd1_pred = self.dec11_dep(concat(fd1_dep, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
         pred = self.dec11_pred(concat(fd1_pred, fe1)) # b*(64+64)*H*W -> b*1*H*W
         assert pred.shape == dep.shape
