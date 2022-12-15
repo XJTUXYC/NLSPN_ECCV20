@@ -15,10 +15,10 @@
             "args": [
                 "--dir_data", "/data3/XYC/datasets/nyudepthv2/",
                 "--gpus", "3",
-                "--epochs", "2",
+                "--epochs", "20",
                 "--batch_size", "8", 
                 "--save", "test",
-                "--test_pipeline"
+                // "--test_pipeline"
             ]
         },
         {
