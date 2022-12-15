@@ -250,15 +250,15 @@ parser.add_argument('--always_clip',
                     help='always clip')
 parser.add_argument('--num_feat4',
                     type=int,
-                    default=128,
+                    default=64,
                     help='number 1/4 feat')
 parser.add_argument('--num_feat2',
                     type=int,
-                    default=64,
+                    default=32,
                     help='number 1/2 feat')
 parser.add_argument('--network',
                     type=str,
-                    default='resnet18',
+                    default='resnet34',
                     choices=('resnet18', 'resnet34'),
                     help='network name')
 parser.add_argument('--prop_time8',
@@ -267,15 +267,15 @@ parser.add_argument('--prop_time8',
                     help='number of propagation8')
 parser.add_argument('--prop_time4',
                     type=int,
-                    default=3,
+                    default=1,
                     help='number of propagation4')
 parser.add_argument('--prop_time2',
                     type=int,
-                    default=3,
+                    default=1,
                     help='number of propagation2')
 parser.add_argument('--prop_time1',
                     type=int,
-                    default=6,
+                    default=3,
                     help='number of propagation1')
 
 args = parser.parse_args()
