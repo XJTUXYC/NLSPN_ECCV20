@@ -229,19 +229,15 @@ parser.add_argument('--lr',
                     default=0.001,
                     help='learning rate')
 parser.add_argument('--use_S2D',
-                    action='store_true',
                     default=True,
                     help="use S2D")
 parser.add_argument('--zero_init_aff',
-                    action='store_true',
                     default=True,
                     help="zero init aff")
 parser.add_argument('--from_scratch',
-                    action='store_true',
                     default=False,
                     help='train from scratch')
 parser.add_argument('--preserve_input',
-                    action='store_true',
                     default=True,
                     help='preserve input points by replacement')
 parser.add_argument('--always_clip',
