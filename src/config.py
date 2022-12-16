@@ -234,8 +234,9 @@ parser.add_argument('--preserve_input',
                     default=True)
 parser.add_argument('--always_clip',
                     default=True)
+
 parser.add_argument('--prop_conf',
-                    default=False)
+                    default=True)
 parser.add_argument('--num_feat4',
                     type=int,
                     default=64)

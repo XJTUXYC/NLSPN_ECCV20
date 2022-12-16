@@ -18,7 +18,9 @@
                 "--epochs", "20",
                 "--batch_size", "8", 
                 "--save", "test",
-                // "--test_pipeline"
+                // "--test_pipeline",
+                // "--test_only",
+                // "--pretrain", "${workspaceFolder}/experiments/221215_120351_feat_all_small/020.pt"
             ]
         },
         {
