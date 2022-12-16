@@ -23,34 +23,34 @@ parser = argparse.ArgumentParser(description='NLSPN')
 # Dataset
 parser.add_argument('--dir_data',
                     type=str,
-                    default='/HDD/dataset/NYUDepthV2_HDF5',
-                    # default='/HDD/dataset/KITTIDepthCompletion',
+                    # default='~/datasets/nyudepthv2',
+                    default='~/datasets/kitti_DC_nlspn',
                     help='path to dataset')
 parser.add_argument('--data_name',
                     type=str,
-                    default='NYU',
-                    # default='KITTIDC',
+                    # default='NYU',
+                    default='KITTIDC',
                     choices=('NYU', 'KITTIDC'),
                     help='dataset name')
 parser.add_argument('--split_json',
                     type=str,
-                    default='../data_json/nyu.json',
-                    # default='../data_json/kitti_dc.json',
+                    # default='../data_json/nyu.json',
+                    default='../data_json/kitti_dc.json',
                     help='path to json file')
 parser.add_argument('--patch_height',
                     type=int,
-                    default=228,
-                    # default=240,
+                    # default=228,
+                    default=240,
                     help='height of a patch to crop')
 parser.add_argument('--patch_width',
                     type=int,
-                    default=304,
-                    # default=1216,
+                    # default=304,
+                    default=1216,
                     help='width of a patch to crop')
 parser.add_argument('--top_crop',
                     type=int,
-                    default=0,
-                    # default=100,
+                    # default=0,
+                    default=100,
                     help='top crop size for KITTI dataset')
 
 
@@ -92,6 +92,10 @@ parser.add_argument('--legacy',
                     action='store_true',
                     default=False,
                     help='legacy code support for pre-trained models')
+parser.add_argument('--prop_kernel',
+                    type=int,
+                    default=3,
+                    help='propagation kernel size')
 
 
 # Training
@@ -123,8 +127,8 @@ parser.add_argument('--batch_size',
                     help='input batch size for training')
 parser.add_argument('--max_depth',
                     type=float,
-                    default=10.0,
-                    # default=90.0,
+                    # default=10.0,
+                    default=90.0,
                     help='maximum depth')
 parser.add_argument('--augment',
                     type=bool,
@@ -136,12 +140,13 @@ parser.add_argument('--no_augment',
                     help='no augmentation')
 parser.add_argument('--num_sample',
                     type=int,
-                    default=500,
-                    # default=0,
+                    # default=500,
+                    default=0,
                     help='number of sparse samples')
 parser.add_argument('--test_crop',
                     action='store_true',
-                    default=False,
+                    # default=False,
+                    default=True,
                     help='crop for test')
 parser.add_argument('--test_pipeline',
                     action='store_true',
@@ -214,9 +219,6 @@ parser.add_argument('--save_result_only',
                     help='save result images only with submission format')
 
 # GRU
-parser.add_argument('--prop_kernel',
-                    type=int,
-                    default=3)
 parser.add_argument('--affinity',
                     type=str,
                     default='TGASS',
@@ -236,7 +238,7 @@ parser.add_argument('--always_clip',
                     default=True)
 
 parser.add_argument('--prop_conf',
-                    default=True)
+                    default=False)
 parser.add_argument('--num_feat4',
                     type=int,
                     default=64)
