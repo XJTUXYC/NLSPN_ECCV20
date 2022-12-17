@@ -32,21 +32,6 @@ parser.add_argument('--data_name',
                     default='KITTIDC',
                     choices=('NYU', 'KITTIDC'),
                     help='dataset name')
-parser.add_argument('--split_json',
-                    type=str,
-                    # default='../data_json/nyu.json',
-                    default='../data_json/kitti_dc.json',
-                    help='path to json file')
-parser.add_argument('--patch_height',
-                    type=int,
-                    # default=228,
-                    default=240,
-                    help='height of a patch to crop')
-parser.add_argument('--patch_width',
-                    type=int,
-                    # default=304,
-                    default=1216,
-                    help='width of a patch to crop')
 parser.add_argument('--top_crop',
                     type=int,
                     # default=0,
@@ -228,6 +213,8 @@ parser.add_argument('--lr',
                     default=0.001)
 parser.add_argument('--zero_init_aff',
                     default=True)
+parser.add_argument('--prop_conf',
+                    default=False)
 parser.add_argument('--from_scratch',
                     default=False)
 parser.add_argument('--use_S2D',
@@ -237,8 +224,6 @@ parser.add_argument('--preserve_input',
 parser.add_argument('--always_clip',
                     default=True)
 
-parser.add_argument('--prop_conf',
-                    default=False)
 parser.add_argument('--num_feat4',
                     type=int,
                     default=64)
@@ -261,6 +246,23 @@ parser.add_argument('--prop_time2',
 parser.add_argument('--prop_time1',
                     type=int,
                     default=3)
+
+parser.add_argument('--patch_height',
+                    type=int,
+                    # default=228,
+                    default=240,
+                    help='height of a patch to crop')
+parser.add_argument('--patch_width',
+                    type=int,
+                    # default=304,
+                    # default=1216,
+                    default=512,
+                    help='width of a patch to crop')
+parser.add_argument('--split_json',
+                    type=str,
+                    # default='../data_json/nyu.json',
+                    default='../data_json/kitti_dc.json',
+                    help='path to json file')
 
 args = parser.parse_args()
 
