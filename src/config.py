@@ -250,19 +250,16 @@ parser.add_argument('--prop_time1',
 parser.add_argument('--patch_height',
                     type=int,
                     # default=228,
-                    default=240,
-                    help='height of a patch to crop')
+                    default=240)
 parser.add_argument('--patch_width',
                     type=int,
                     # default=304,
                     # default=1216,
-                    default=512,
-                    help='width of a patch to crop')
+                    default=608)
 parser.add_argument('--split_json',
                     type=str,
                     # default='../data_json/nyu.json',
-                    default='../data_json/kitti_dc.json',
-                    help='path to json file')
+                    default='../data_json/kitti_dc_4.json')
 
 args = parser.parse_args()
 
