@@ -25,6 +25,20 @@
             ]
         },
         {
+            "name": "JSON",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/utils/generate_json_KITTI_DC.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}/utils",
+            "args": [
+                "--path_root", "~/datasets/kitti_DC_nlspn",
+                "--name_out", "kitti_dc_4.json",
+                "--num_train", "21474"
+            ]
+        },
+        {
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
