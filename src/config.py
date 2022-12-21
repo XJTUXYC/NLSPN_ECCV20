@@ -115,6 +115,11 @@ parser.add_argument('--max_depth',
                     # default=10.0,
                     default=90.0,
                     help='maximum depth')
+parser.add_argument('--min_depth',
+                    type=float,
+                    # default=0,
+                    default=1.5,
+                    help='minimum depth')
 parser.add_argument('--augment',
                     type=bool,
                     default=True,

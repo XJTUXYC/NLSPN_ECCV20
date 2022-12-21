@@ -22,7 +22,7 @@ class NLSPNMetric(BaseMetric):
         super(NLSPNMetric, self).__init__(args)
 
         self.args = args
-        self.t_valid = 0.0001
+        self.t_valid = self.args.min_depth + 1e-4
 
         self.metric_name = [
             'RMSE', 'MAE', 'iRMSE', 'iMAE', 'REL', 'D^1', 'D^2', 'D^3'
@@ -33,6 +33,9 @@ class NLSPNMetric(BaseMetric):
             pred = output['pred'].detach()
             gt = sample['gt'].detach()
 
+            gt = torch.clamp(gt, min=self.args.min_depth, max=self.args.max_depth)
+            pred = torch.clamp(pred, min=self.args.min_depth, max=self.args.max_depth)
+            
             pred_inv = 1.0 / (pred + 1e-8)
             gt_inv = 1.0 / (gt + 1e-8)
 

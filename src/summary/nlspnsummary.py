@@ -109,9 +109,9 @@ class NLSPNSummary(BaseSummary):
             pred = pred[0:num_summary, :, :, :]
 
         rgb = np.clip(rgb, a_min=0, a_max=1.0)
-        dep = np.clip(dep, a_min=0, a_max=self.args.max_depth)
-        gt = np.clip(gt, a_min=0, a_max=self.args.max_depth)
-        pred = np.clip(pred, a_min=0, a_max=self.args.max_depth)
+        dep = np.clip(dep, a_min=self.args.min_depth, a_max=self.args.max_depth)
+        gt = np.clip(gt, a_min=self.args.min_depth, a_max=self.args.max_depth)
+        pred = np.clip(pred, a_min=self.args.min_depth, a_max=self.args.max_depth)
 
         list_img = []
 

@@ -13,13 +13,13 @@
             "justMyCode": true,
             "cwd": "${workspaceFolder}/src",
             "args": [
-                "--dir_data", "~/datasets/kitti_DC_nlspn",
-                "--gpus", "0",
+                "--dir_data", "/data3/XYC/datasets/kitti_DC_nlspn",
+                "--gpus", "3",
                 "--epochs", "20",
                 "--batch_size", "1", 
                 "--save", "test",
-                // "--test_pipeline",
-                // "--pretrain", "${workspaceFolder}/experiments/221215_120351_feat_all_small/020.pt",
+                "--test_pipeline",
+                // "--pretrain", "${workspaceFolder}/experiments/221220_024623_kitti4_608_16_4/020.pt",
                 // "--test_only",
                 // "--resume"
             ]
