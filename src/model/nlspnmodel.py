@@ -304,7 +304,6 @@ class NLSPNModel(nn.Module):
         # pred_confF
         fd1_pred_conf = self.dec11_dep(concat(fd1_dep, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
         pred = self.dec11_pred(concat(fd1_pred_conf, fe1)) # b*(64+64)*H*W -> b*1*H*W
-        pred = self.args.min_depth / (pred + self.args.min_depth / self.args.max_depth)
         
         if self.args.preserve_input:
             mask_fix = torch.sum(dep > 0.0, dim=1, keepdim=True).detach()
@@ -342,12 +341,14 @@ class NLSPNModel(nn.Module):
                                                      
             if k < self.args.prop_time1 - 1:
                 aff = self._aff_pop(aff) # b*8*H*W
-                aff = self.GRU1(h=aff, x=pred/self.args.max_depth) # b*8*H*W
+                aff = self.GRU1(h=aff, x=pred) # b*8*H*W
                 aff = self._aff_norm_insert(aff, 1) # b*9*H*W
         # time_end=time.time()
         # print('time cost for GRU1',1000*(time_end-time_start),'ms')
         
         # output
+        pred = self.args.min_depth / (pred + self.args.min_depth / self.args.max_depth)
+        
         if not self.args.always_clip:
             pred = torch.clamp(pred, min=self.args.min_depth)
 

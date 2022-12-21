@@ -225,9 +225,9 @@ parser.add_argument('--from_scratch',
 parser.add_argument('--use_S2D',
                     default=True)
 parser.add_argument('--preserve_input',
-                    default=True)
+                    default=False)
 parser.add_argument('--always_clip',
-                    default=True)
+                    default=False)
 
 parser.add_argument('--num_feat4',
                     type=int,
@@ -259,8 +259,9 @@ parser.add_argument('--patch_height',
 parser.add_argument('--patch_width',
                     type=int,
                     # default=304,
-                    # default=1216,
-                    default=608)
+                    default=1216,
+                    # default=608,
+                    )
 parser.add_argument('--split_json',
                     type=str,
                     # default='../data_json/nyu.json',
