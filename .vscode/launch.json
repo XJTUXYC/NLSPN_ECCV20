@@ -13,13 +13,13 @@
             "justMyCode": true,
             "cwd": "${workspaceFolder}/src",
             "args": [
-                "--dir_data", "/data3/XYC/datasets/kitti_DC_nlspn",
+                "--dir_data", "/data3/XYC/datasets/NYU",
                 "--gpus", "3",
                 "--epochs", "20",
-                "--batch_size", "1", 
+                "--batch_size", "8", 
                 "--save", "test",
-                "--test_pipeline",
-                // "--pretrain", "${workspaceFolder}/experiments/221220_024623_kitti4_608_16_4/020.pt",
+                // "--test_pipeline",
+                // "--pretrain", "${workspaceFolder}/experiments/221225_111025_inv_NYU_16_2/020.pt",
                 // "--test_only",
                 // "--resume"
             ]

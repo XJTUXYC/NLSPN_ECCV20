@@ -23,8 +23,7 @@ parser = argparse.ArgumentParser(description='NLSPN')
 # Dataset
 parser.add_argument('--dir_data',
                     type=str,
-                    # default='~/datasets/nyudepthv2',
-                    default='~/datasets/kitti_DC_nlspn',
+                    default='/data3/XYC/datasets/kitti_DC_nlspn',
                     help='path to dataset')
 parser.add_argument('--data_name',
                     type=str,
@@ -117,7 +116,7 @@ parser.add_argument('--max_depth',
                     help='maximum depth')
 parser.add_argument('--min_depth',
                     type=float,
-                    # default=0,
+                    # default=0.1,
                     default=1.5,
                     help='minimum depth')
 parser.add_argument('--augment',
@@ -225,23 +224,27 @@ parser.add_argument('--from_scratch',
 parser.add_argument('--use_S2D',
                     default=True)
 parser.add_argument('--preserve_input',
-                    default=False)
+                    default=False,
+                    # default=True
+                    )
 parser.add_argument('--always_clip',
-                    default=False)
+                    default=False,
+                    # default=True
+                    )
 
 parser.add_argument('--num_feat4',
                     type=int,
-                    default=64)
+                    default=96)
 parser.add_argument('--num_feat2',
                     type=int,
-                    default=32)
+                    default=64)
 parser.add_argument('--network',
                     type=str,
                     default='resnet34',
                     choices=('resnet18', 'resnet34'))
 parser.add_argument('--prop_time8',
                     type=int,
-                    default=3)
+                    default=1)
 parser.add_argument('--prop_time4',
                     type=int,
                     default=1)
@@ -255,7 +258,8 @@ parser.add_argument('--prop_time1',
 parser.add_argument('--patch_height',
                     type=int,
                     # default=228,
-                    default=240)
+                    default=240,
+                    )
 parser.add_argument('--patch_width',
                     type=int,
                     # default=304,
@@ -265,7 +269,8 @@ parser.add_argument('--patch_width',
 parser.add_argument('--split_json',
                     type=str,
                     # default='../data_json/nyu.json',
-                    default='../data_json/kitti_dc_4.json')
+                    default='../data_json/kitti_dc_4.json',
+                    )
 
 args = parser.parse_args()
 

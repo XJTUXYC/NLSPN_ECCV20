@@ -34,7 +34,6 @@ class NLSPNMetric(BaseMetric):
             gt = sample['gt'].detach()
 
             gt = torch.clamp(gt, min=self.args.min_depth, max=self.args.max_depth)
-            pred = torch.clamp(pred, min=self.args.min_depth, max=self.args.max_depth)
             
             pred_inv = 1.0 / (pred + 1e-8)
             gt_inv = 1.0 / (gt + 1e-8)

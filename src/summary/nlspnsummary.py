@@ -111,7 +111,6 @@ class NLSPNSummary(BaseSummary):
         rgb = np.clip(rgb, a_min=0, a_max=1.0)
         dep = np.clip(dep, a_min=self.args.min_depth, a_max=self.args.max_depth)
         gt = np.clip(gt, a_min=self.args.min_depth, a_max=self.args.max_depth)
-        pred = np.clip(pred, a_min=self.args.min_depth, a_max=self.args.max_depth)
 
         list_img = []
 
@@ -159,8 +158,6 @@ class NLSPNSummary(BaseSummary):
 
                 pred = output['pred'].detach()
 
-                pred = torch.clamp(pred, min=0)
-
                 pred = pred[0, 0, :, :].data.cpu().numpy()
 
                 pred = (pred*256.0).astype(np.uint16)
@@ -172,8 +169,6 @@ class NLSPNSummary(BaseSummary):
                 dep = sample['dep'].detach()
                 pred = output['pred'].detach()
                 gt = sample['gt'].detach()
-
-                pred = torch.clamp(pred, min=0)
 
                 # Un-normalization
                 rgb.mul_(self.img_std.type_as(rgb)).add_(

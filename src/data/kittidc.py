@@ -152,9 +152,9 @@ class KITTIDC(BaseDataset):
                 K[2] = width - K[2]
 
             # Rotation
-            rgb = TF.rotate(rgb, angle=degree, interpolation=Image.BICUBIC)
-            depth = TF.rotate(depth, angle=degree, interpolation=Image.NEAREST)
-            gt = TF.rotate(gt, angle=degree, interpolation=Image.NEAREST)
+            rgb = TF.rotate(rgb, degree, Image.BICUBIC)
+            depth = TF.rotate(depth, degree, Image.NEAREST)
+            gt = TF.rotate(gt, degree, Image.NEAREST)
 
             # Color jitter
             brightness = np.random.uniform(0.6, 1.4)

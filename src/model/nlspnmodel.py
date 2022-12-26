@@ -66,6 +66,7 @@ class NLSPNModel(nn.Module):
             self.GRU8 = ConvGRU(hidden=128, input=128)
         else:
             self.dec88_aff = conv_bn_relu(256, 128, kernel=3, stride=1)
+            # pass
 
         # 1/4
         self.dec84_dep = convt_bn_relu(128+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
@@ -252,6 +253,8 @@ class NLSPNModel(nn.Module):
         # 1/8
         fe8_dep = self.dec88_dep(fe8) # b*128*H/8*W/8
         fe8_aff = self.dec88_aff(fe8) # b*128*H/8*W/8
+        # fe8_dep = fe8[:, :128, :, :]
+        # fe8_aff = fe8[:, 128:, :, :]
         
         # time_start = time.time()
         for _ in range(self.args.prop_time8):
@@ -301,17 +304,16 @@ class NLSPNModel(nn.Module):
         fd1_dep = self.dec21_dep(concat(fd2_dep, fe2)) # b*(64+128)*H/2*W/2 -> b*64*H*W
         fd1_aff = self.dec21_aff(concat(fd2_aff, fe2)) # b*(64+128)*H/2*W/2 -> b*64*H*W
         
-        # pred_confF
+        # pred_conf
         fd1_pred_conf = self.dec11_dep(concat(fd1_dep, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
         pred = self.dec11_pred(concat(fd1_pred_conf, fe1)) # b*(64+64)*H*W -> b*1*H*W
         
         if self.args.preserve_input:
-            mask_fix = torch.sum(dep > 0.0, dim=1, keepdim=True).detach()
+            mask_fix = torch.sum(dep > self.args.min_depth, dim=1, keepdim=True).detach()
             mask_fix = (mask_fix > 0.0).type_as(dep)
-            pred = (1.0 - mask_fix) * pred + mask_fix * dep
-            
+            pred = (1.0 - mask_fix) * pred + mask_fix * (self.args.min_depth / (dep + 1e-4) - self.args.min_depth / self.args.max_depth)
         if self.args.always_clip:
-            pred = torch.clamp(pred, min=self.args.min_depth)
+            pred = torch.clamp(pred, min=0, max=1-self.args.min_depth/self.args.max_depth)
             
         if self.args.prop_conf:
             conf = self.dec11_conf(concat(fd1_pred_conf, fe1)) # b*(64+64)*H*W -> b*1*H*W
@@ -335,9 +337,9 @@ class NLSPNModel(nn.Module):
                 pred = self._propagate_once(pred, off, aff)
 
             if self.args.preserve_input:
-                pred = (1.0 - mask_fix) * pred + mask_fix * dep
+                pred = (1.0 - mask_fix) * pred + mask_fix * (self.args.min_depth / (dep + 1e-4) - self.args.min_depth / self.args.max_depth)
             if self.args.always_clip:
-                pred = torch.clamp(pred, min=self.args.min_depth)
+                pred = torch.clamp(pred, min=0, max=1-self.args.min_depth/self.args.max_depth)
                                                      
             if k < self.args.prop_time1 - 1:
                 aff = self._aff_pop(aff) # b*8*H*W
@@ -348,10 +350,7 @@ class NLSPNModel(nn.Module):
         
         # output
         pred = self.args.min_depth / (pred + self.args.min_depth / self.args.max_depth)
-        
-        if not self.args.always_clip:
-            pred = torch.clamp(pred, min=self.args.min_depth)
-
+        pred = torch.clamp(pred, min=self.args.min_depth, max=self.args.max_depth)
         output = {'pred': pred}
 
         return output
