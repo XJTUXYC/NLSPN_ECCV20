@@ -13,10 +13,10 @@
             "justMyCode": true,
             "cwd": "${workspaceFolder}/src",
             "args": [
-                "--dir_data", "/data3/XYC/datasets/NYU",
+                "--dir_data", "/data3/XYC/datasets/KITTI",
                 "--gpus", "3",
-                "--epochs", "20",
-                "--batch_size", "8", 
+                "--epochs", "2",
+                "--batch_size", "2", 
                 "--save", "test",
                 // "--test_pipeline",
                 // "--pretrain", "${workspaceFolder}/experiments/221225_111025_inv_NYU_16_2/020.pt",
