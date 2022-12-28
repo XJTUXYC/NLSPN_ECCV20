@@ -44,6 +44,7 @@ import torch.distributed as dist
 import apex
 from apex.parallel import DistributedDataParallel as DDP
 from apex import amp
+from fvcore.nn import FlopCountAnalysis, parameter_count_table
 
 # Minimize randomness
 torch.manual_seed(args_config.seed)
@@ -300,6 +301,9 @@ def train(gpu, args):
                       if val is not None}
 
             output = net(sample)
+            
+            # flops = FlopCountAnalysis(net, sample)
+            # print("FLOPs(G): ", flops.total()/1e9)
 
             loss_sum, loss_val = loss(sample, output)
 
