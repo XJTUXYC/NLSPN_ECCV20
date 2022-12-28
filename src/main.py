@@ -302,8 +302,9 @@ def train(gpu, args):
 
             output = net(sample)
             
-            # flops = FlopCountAnalysis(net, sample)
-            # print("FLOPs(G): ", flops.total()/1e9)
+            if args.test_pipeline:
+                flops = FlopCountAnalysis(net, sample)
+                print("FLOPs(G): ", flops.total()/1e9)
 
             loss_sum, loss_val = loss(sample, output)
 
@@ -390,7 +391,6 @@ def test(args):
     t_total = 0
 
     for batch, sample in enumerate(loader_test):
-        
         if args.test_pipeline:
             if batch == 1:
                 break
