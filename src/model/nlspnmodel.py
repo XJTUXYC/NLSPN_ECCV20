@@ -98,7 +98,7 @@ class NLSPNModel(nn.Module):
         self.dec11_aff = conv_bn_relu(64+64, 64, kernel=3, stride=1)
         self.dec11_aff_off = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
         
-        self.GRU1 = ConvGRU(hidden=self.num_neighbors, input=1, zero_init=True, tanh=False)
+        self.GRU1 = ConvGRU(hidden=self.num_neighbors, input=1, zero_init=self.args.zero_init_aff, tanh=False)
 
         # aff_scale_const
         if self.args.affinity == 'TC':
