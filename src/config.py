@@ -270,6 +270,7 @@ parser.add_argument('--split_json',
                     type=str,
                     # default='../data_json/nyu.json',
                     default='../data_json/kitti_dc_4.json',
+                    # default='../data_json/kitti_dc.json'
                     )
 
 args = parser.parse_args()
