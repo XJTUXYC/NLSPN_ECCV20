@@ -110,8 +110,8 @@ def train(gpu, args):
     # Network
     model = get_model(args)
     net = model(args)
-    print(sum(param.numel() for param in net.parameters()))
     net.cuda(gpu)
+    print(sum(param.numel() for param in net.parameters()))
 
     if gpu == 0:
         if args.pretrain is not None:
