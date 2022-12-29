@@ -204,7 +204,6 @@ def train(gpu, args):
             log_loss = 0.0
 
         for batch, sample in enumerate(loader_train):
-            
             if args.test_pipeline:
                 if batch == 1:
                     break
@@ -292,7 +291,6 @@ def train(gpu, args):
             log_loss = 0.0
 
         for batch, sample in enumerate(loader_val):
-            
             if args.test_pipeline:
                 if batch == 1:
                     break
