@@ -274,8 +274,8 @@ def train(gpu, args):
                     'args': args
                 }
             
-            if os.path.isfile('{}/{:03d}.pt'.format(args.save_dir, epoch-1)):
-                os.remove('{}/{:03d}.pt'.format(args.save_dir, epoch-1))
+            # if os.path.isfile('{}/{:03d}.pt'.format(args.save_dir, epoch-1)):
+            #     os.remove('{}/{:03d}.pt'.format(args.save_dir, epoch-1))
                 
             torch.save(state, '{}/{:03d}.pt'.format(args.save_dir, epoch))
 
