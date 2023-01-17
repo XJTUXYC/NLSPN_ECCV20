@@ -214,7 +214,7 @@ parser.add_argument('--affinity',
                     choices=('AS', 'ASS', 'TC', 'TGASS'))
 parser.add_argument('--lr',
                     type=float,
-                    default=0.001)
+                    default=5e-4)
 parser.add_argument('--zero_init_aff',
                     default=True)
 parser.add_argument('--prop_conf',
@@ -253,7 +253,7 @@ parser.add_argument('--prop_time2',
                     default=1)
 parser.add_argument('--prop_time1',
                     type=int,
-                    default=3)
+                    default=9)
 
 parser.add_argument('--patch_height',
                     type=int,

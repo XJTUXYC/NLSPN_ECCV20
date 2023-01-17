@@ -59,14 +59,14 @@ class NLSPNModel(nn.Module):
         
         # Decoder
         # 1/8
-        # self.dec88_dep = conv_bn_relu(256, 128, kernel=3, stride=1)
+        self.dec88_dep = conv_bn_relu(256, 128, kernel=3, stride=1)
         if args.prop_time8 > 0:
-            # self.dec88_aff = nn.Sequential(conv_bn_relu(256, 128, kernel=3, stride=1, relu=False), nn.Tanh())
+            self.dec88_aff = nn.Sequential(conv_bn_relu(256, 128, kernel=3, stride=1, relu=False), nn.Tanh())
             self.aff8_gen = conv_bn_relu(128, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
             self.GRU8 = ConvGRU(hidden=128, input=128)
         else:
-            # self.dec88_aff = conv_bn_relu(256, 128, kernel=3, stride=1)
-            pass
+            self.dec88_aff = conv_bn_relu(256, 128, kernel=3, stride=1)
+            # pass
 
         # 1/4
         self.dec84_dep = convt_bn_relu(128+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
@@ -251,10 +251,10 @@ class NLSPNModel(nn.Module):
         
         # Decoding
         # 1/8
-        # fe8_dep = self.dec88_dep(fe8) # b*128*H/8*W/8
-        # fe8_aff = self.dec88_aff(fe8) # b*128*H/8*W/8
-        fe8_dep = fe8[:, :128, :, :]
-        fe8_aff = fe8[:, 128:, :, :]
+        fe8_dep = self.dec88_dep(fe8) # b*128*H/8*W/8
+        fe8_aff = self.dec88_aff(fe8) # b*128*H/8*W/8
+        # fe8_dep = fe8[:, :128, :, :]
+        # fe8_aff = fe8[:, 128:, :, :]
         
         # time_start = time.time()
         for _ in range(self.args.prop_time8):
