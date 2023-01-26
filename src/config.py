@@ -253,7 +253,7 @@ parser.add_argument('--prop_time2',
                     default=1)
 parser.add_argument('--prop_time1',
                     type=int,
-                    default=9)
+                    default=3)
 
 parser.add_argument('--patch_height',
                     type=int,
