@@ -299,10 +299,6 @@ def train(gpu, args):
                       if val is not None}
 
             output = net(sample)
-            
-            if args.test_pipeline:
-                flops = FlopCountAnalysis(net, sample)
-                print("FLOPs(G): ", flops.total()/1e9)
 
             loss_sum, loss_val = loss(sample, output)
 
@@ -400,6 +396,10 @@ def test(args):
         output = net(sample)
         t1 = time.time()
 
+        if args.test_pipeline:
+            flops = FlopCountAnalysis(net, sample)
+            print("FLOPs(G): ", flops.total()/1e9)
+        
         t_total += (t1 - t0)
 
         metric_val = metric.evaluate(sample, output, 'train')

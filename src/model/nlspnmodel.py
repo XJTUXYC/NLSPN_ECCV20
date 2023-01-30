@@ -63,6 +63,7 @@ class NLSPNModel(nn.Module):
         if args.prop_time8 > 0:
             self.dec88_aff = nn.Sequential(conv_bn_relu(256, 128, kernel=3, stride=1, relu=False), nn.Tanh())
             self.aff8_gen = conv_bn_relu(128, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            self.bias8_gen = nn.Sequential(conv_bn_relu(128, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
             self.GRU8 = ConvGRU(hidden=128, input=128)
         else:
             self.dec88_aff = conv_bn_relu(256, 128, kernel=3, stride=1)
@@ -73,6 +74,7 @@ class NLSPNModel(nn.Module):
         if args.prop_time4 > 0:
             self.dec84_aff = nn.Sequential(convt_bn_relu(128+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
             self.aff4_gen = conv_bn_relu(args.num_feat4, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            self.bias4_gen = nn.Sequential(conv_bn_relu(args.num_feat4, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
             self.GRU4 = ConvGRU(hidden=args.num_feat4, input=args.num_feat4)
         else:
             self.dec84_aff = convt_bn_relu(128+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
@@ -82,6 +84,7 @@ class NLSPNModel(nn.Module):
         if args.prop_time2 > 0:
             self.dec42_aff = nn.Sequential(convt_bn_relu(args.num_feat4+256, args.num_feat2, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
             self.aff2_gen = conv_bn_relu(args.num_feat2, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            self.bias2_gen = nn.Sequential(conv_bn_relu(args.num_feat2, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
             self.GRU2 = ConvGRU(hidden=args.num_feat2, input=args.num_feat2)
         else:
             self.dec42_aff = convt_bn_relu(args.num_feat4+256, args.num_feat2, kernel=3, stride=2, padding=1, output_padding=1)
@@ -261,7 +264,10 @@ class NLSPNModel(nn.Module):
             aff8 = self.aff8_gen(fe8_aff)
             aff8 = self._aff_norm_insert(aff8, 8)
             
+            bias8 = self.bias8_gen(fe8_aff)
+            
             fe8_dep = self._propagate_once(fe8_dep, None, aff8)
+            fe8_dep += bias8
             fe8_dep = F.relu(fe8_dep)
             
             fe8_aff = self.GRU8(h=fe8_aff, x=fe8_dep)
@@ -277,7 +283,10 @@ class NLSPNModel(nn.Module):
             aff4 = self.aff4_gen(fd4_aff)
             aff4 = self._aff_norm_insert(aff4, 4)
             
+            bias4 = self.bias4_gen(fd4_aff)
+            
             fd4_dep = self._propagate_once(fd4_dep, None, aff4)
+            fd4_dep += bias4
             fd4_dep = F.relu(fd4_dep)
             
             fd4_aff = self.GRU4(h=fd4_aff, x=fd4_dep)
@@ -293,7 +302,10 @@ class NLSPNModel(nn.Module):
             aff2 = self.aff2_gen(fd2_aff)
             aff2 = self._aff_norm_insert(aff2, 2)
             
+            bias2 = self.bias2_gen(fd2_aff)
+            
             fd2_dep = self._propagate_once(fd2_dep, None, aff2)
+            fd2_dep += bias2
             fd2_dep = F.relu(fd2_dep)
             
             fd2_aff = self.GRU2(h=fd2_aff, x=fd2_dep)

@@ -18,7 +18,7 @@
                 "--epochs", "1",
                 "--batch_size", "1", 
                 "--save", "test",
-                // "--test_pipeline",
+                "--test_pipeline",
                 // "--pretrain", "${workspaceFolder}/experiments/230117_231922_KITTI_1216_4_2_1119/020.pt",
                 // "--test_only",
                 // "--resume"
