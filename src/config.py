@@ -231,6 +231,9 @@ parser.add_argument('--always_clip',
                     # default=True
                     )
 
+parser.add_argument('--num_feat8',
+                    type=int,
+                    default=256)
 parser.add_argument('--num_feat4',
                     type=int,
                     default=128)
@@ -241,9 +244,6 @@ parser.add_argument('--network',
                     type=str,
                     default='resnet34',
                     choices=('resnet18', 'resnet34'))
-parser.add_argument('--prop_time16',
-                    type=int,
-                    default=1)
 parser.add_argument('--prop_time8',
                     type=int,
                     default=1)

@@ -56,48 +56,38 @@ class NLSPNModel(nn.Module):
         # 1/8
         self.enc48 = backbone.layer4
         del backbone
-
-        # 1/16
-        self.enc816 = conv_bn_relu(512, 512, kernel=3, stride=2)
         
         # Decoder
-        # 1/16
-        self.dec1616_dep = conv_bn_relu(512, 256, kernel=3, stride=1)
-        if args.prop_time16 > 0:
-            self.dec1616_aff = nn.Sequential(conv_bn_relu(512, 256, kernel=3, stride=1, relu=False), nn.Tanh())
-            self.aff16_gen = conv_bn_relu(256, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
-            self.bias16_gen = nn.Sequential(conv_bn_relu(256, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
-            self.GRU16 = ConvGRU(hidden=256, input=256)
-        else:
-            self.dec1616_aff = conv_bn_relu(512, 256, kernel=3, stride=1)
-        
         # 1/8
-        self.dec168_dep = convt_bn_relu(256+512, 128, kernel=3, stride=2, padding=1, output_padding=1)
+        self.dec88_dep = conv_bn_relu(512, args.num_feat8, kernel=3, stride=1)
         if args.prop_time8 > 0:
-            self.dec168_aff = nn.Sequential(convt_bn_relu(256+512, 128, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
-            self.aff8_gen = conv_bn_relu(128, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
-            self.bias8_gen = nn.Sequential(conv_bn_relu(128, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
-            self.GRU8 = ConvGRU(hidden=128, input=128)
+            self.dec88_aff = nn.Sequential(conv_bn_relu(512, args.num_feat8, kernel=3, stride=1, relu=False), nn.Tanh())
+            self.aff8_gen = conv_bn_relu(args.num_feat8, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            self.GRU8 = ConvGRU(hidden=args.num_feat8, input=args.num_feat8)
+            if args.prop_time8 == 1:
+                self.bias8_gen = nn.Sequential(conv_bn_relu(args.num_feat8, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
         else:
-            self.dec168_aff = convt_bn_relu(256+512, 128, kernel=3, stride=2, padding=1, output_padding=1)
+            self.dec88_aff = conv_bn_relu(512, args.num_feat8, kernel=3, stride=1)
 
         # 1/4
-        self.dec84_dep = convt_bn_relu(128+512, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
+        self.dec84_dep = convt_bn_relu(args.num_feat8+512, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
         if args.prop_time4 > 0:
-            self.dec84_aff = nn.Sequential(convt_bn_relu(128+512, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
+            self.dec84_aff = nn.Sequential(convt_bn_relu(args.num_feat8+512, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
             self.aff4_gen = conv_bn_relu(args.num_feat4, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
-            self.bias4_gen = nn.Sequential(conv_bn_relu(args.num_feat4, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
             self.GRU4 = ConvGRU(hidden=args.num_feat4, input=args.num_feat4)
+            if args.prop_time4 == 1:
+                self.bias4_gen = nn.Sequential(conv_bn_relu(args.num_feat4, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
         else:
-            self.dec84_aff = convt_bn_relu(128+512, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
+            self.dec84_aff = convt_bn_relu(args.num_feat8+512, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
             
         # 1/2        
         self.dec42_dep = convt_bn_relu(args.num_feat4+256, args.num_feat2, kernel=3, stride=2, padding=1, output_padding=1)
         if args.prop_time2 > 0:
             self.dec42_aff = nn.Sequential(convt_bn_relu(args.num_feat4+256, args.num_feat2, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
             self.aff2_gen = conv_bn_relu(args.num_feat2, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
-            self.bias2_gen = nn.Sequential(conv_bn_relu(args.num_feat2, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
             self.GRU2 = ConvGRU(hidden=args.num_feat2, input=args.num_feat2)
+            if args.prop_time2 == 1:
+                self.bias2_gen = nn.Sequential(conv_bn_relu(args.num_feat2, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
         else:
             self.dec42_aff = convt_bn_relu(args.num_feat4+256, args.num_feat2, kernel=3, stride=2, padding=1, output_padding=1)
             
@@ -120,8 +110,6 @@ class NLSPNModel(nn.Module):
             self.aff_scale_const = nn.Parameter(self.num_neighbors * torch.ones(1))
             self.aff_scale_const.requires_grad = False
         elif self.args.affinity == 'TGASS':
-            if args.prop_time16 > 0:
-                self.aff_scale_const16 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
             if args.prop_time8 > 0:
                 self.aff_scale_const8 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
             if args.prop_time4 > 0:
@@ -165,9 +153,7 @@ class NLSPNModel(nn.Module):
         if self.args.affinity == 'TC':
             aff = torch.tanh(aff) / self.aff_scale_const
         elif self.args.affinity == 'TGASS':
-            if level == 16:
-                aff = torch.tanh(aff) / (self.aff_scale_const16 + 1e-8)
-            elif level == 8:
+            if level == 8:
                 aff = torch.tanh(aff) / (self.aff_scale_const8 + 1e-8)
             elif level == 4:
                 aff = torch.tanh(aff) / (self.aff_scale_const4 + 1e-8)
@@ -268,61 +254,43 @@ class NLSPNModel(nn.Module):
         # 1/8
         fe8 = self.enc48(fe4) # b*512*H/8*W/8
         
-        # 1/16
-        fe16 = self.enc816(fe8) # b*512*H/16*W/16
-        
         # Decoding
-        # 1/16
-        fe16_dep = self.dec1616_dep(fe16) # b*256*H/16*W/16
-        fe16_aff = self.dec1616_aff(fe16) # b*256*H/16*W/16
-        
-        # time_start = time.time()
-        for _ in range(self.args.prop_time16):
-            aff16 = self.aff16_gen(fe16_aff)
-            aff16 = self._aff_norm_insert(aff16, 16)
-            
-            bias16 = self.bias16_gen(fe16_aff)
-            
-            fe16_dep = self._propagate_once(fe16_dep, None, aff16)
-            fe16_dep += bias16
-            fe16_dep = F.relu(fe16_dep)
-            
-            fe16_aff = self.GRU16(h=fe16_aff, x=fe16_dep)
-        # time_end=time.time()
-        # print('time cost for GRU8',1000*(time_end-time_start),'ms')
-        
         # 1/8
-        fe8_dep = self.dec168_dep(torch.cat([fe16_dep, fe16], dim=1)) # b*(256+512)*H/16*W/16 -> b*128*H/8*W/8
-        fe8_aff = self.dec168_aff(torch.cat([fe16_aff, fe16], dim=1)) # b*(256+512)*H/16*W/16 -> b*128*H/8*W/8
+        fd8_dep = self.dec88_dep(fe8) # b*256*H/8*W/8
+        fd8_aff = self.dec88_aff(fe8) # b*256*H/8*W/8
         
         # time_start = time.time()
         for _ in range(self.args.prop_time8):
-            aff8 = self.aff8_gen(fe8_aff)
+            aff8 = self.aff8_gen(fd8_aff)
             aff8 = self._aff_norm_insert(aff8, 8)
             
-            bias8 = self.bias8_gen(fe8_aff)
+            fd8_dep = self._propagate_once(fd8_dep, None, aff8)
             
-            fe8_dep = self._propagate_once(fe8_dep, None, aff8)
-            fe8_dep += bias8
-            fe8_dep = F.relu(fe8_dep)
+            if self.args.prop_time8 == 1:
+                bias8 = self.bias8_gen(fd8_aff)
+                fd8_dep += bias8
+                
+            fd8_dep = F.relu(fd8_dep)
             
-            fe8_aff = self.GRU8(h=fe8_aff, x=fe8_dep)
+            fd8_aff = self.GRU8(h=fd8_aff, x=fd8_dep)
         # time_end=time.time()
         # print('time cost for GRU8',1000*(time_end-time_start),'ms')
         
         # 1/4
-        fd4_dep = self.dec84_dep(torch.cat([fe8_dep, fe8], dim=1)) # b*(128+512)*H/8*W/8 -> b*128*H/4*W/4
-        fd4_aff = self.dec84_aff(torch.cat([fe8_aff, fe8], dim=1)) # b*(128+512)*H/8*W/8 -> b*128*H/4*W/4
+        fd4_dep = self.dec84_dep(concat(fd8_dep, fe8)) # b*(256+512)*H/8*W/8 -> b*128*H/4*W/4
+        fd4_aff = self.dec84_aff(concat(fd8_aff, fe8)) # b*(256+512)*H/8*W/8 -> b*128*H/4*W/4
         
         # time_start = time.time()
         for _ in range(self.args.prop_time4):
             aff4 = self.aff4_gen(fd4_aff)
             aff4 = self._aff_norm_insert(aff4, 4)
             
-            bias4 = self.bias4_gen(fd4_aff)
-            
             fd4_dep = self._propagate_once(fd4_dep, None, aff4)
-            fd4_dep += bias4
+            
+            if self.args.prop_time4 == 1:
+                bias4 = self.bias4_gen(fd4_aff)
+                fd4_dep += bias4
+                
             fd4_dep = F.relu(fd4_dep)
             
             fd4_aff = self.GRU4(h=fd4_aff, x=fd4_dep)
@@ -337,11 +305,13 @@ class NLSPNModel(nn.Module):
         for _ in range(self.args.prop_time2):
             aff2 = self.aff2_gen(fd2_aff)
             aff2 = self._aff_norm_insert(aff2, 2)
-            
-            bias2 = self.bias2_gen(fd2_aff)
-            
+        
             fd2_dep = self._propagate_once(fd2_dep, None, aff2)
-            fd2_dep += bias2
+            
+            if self.args.prop_time2 == 1:
+                bias2 = self.bias2_gen(fd2_aff)
+                fd2_dep += bias2
+                
             fd2_dep = F.relu(fd2_dep)
             
             fd2_aff = self.GRU2(h=fd2_aff, x=fd2_dep)
@@ -356,18 +326,12 @@ class NLSPNModel(nn.Module):
         fd1_pred_conf = self.dec11_dep(concat(fd1_dep, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
         pred = self.dec11_pred(concat(fd1_pred_conf, fe1)) # b*(64+64)*H*W -> b*1*H*W
         
-        if self.args.preserve_input:
-            mask_fix = torch.sum((dep >= self.args.min_depth) & (dep <= self.args.max_depth), dim=1, keepdim=True).detach()
-            mask_fix = (mask_fix > 0.0).type_as(dep)
-            pred = (1.0 - mask_fix) * pred + mask_fix * (self.args.min_depth / (dep + 1e-8) - self.args.min_depth / self.args.max_depth)
         if self.args.always_clip:
             pred = torch.clamp(pred, min=0, max=1-self.args.min_depth/self.args.max_depth)
             
         if self.args.prop_conf:
             conf = self.dec11_conf(concat(fd1_pred_conf, fe1)) # b*(64+64)*H*W -> b*1*H*W
-            if self.args.preserve_input:
-                conf = (1.0 - mask_fix) * conf + mask_fix
-        
+
         # aff_off
         fd1_aff_off = self.dec11_aff(concat(fd1_aff, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
         aff_off = self.dec11_aff_off(concat(fd1_aff_off, fe1)) # b*(64+64)*H*W -> b*24*H*W
@@ -384,8 +348,6 @@ class NLSPNModel(nn.Module):
             else:
                 pred = self._propagate_once(pred, off, aff)
 
-            if self.args.preserve_input:
-                pred = (1.0 - mask_fix) * pred + mask_fix * (self.args.min_depth / (dep + 1e-8) - self.args.min_depth / self.args.max_depth)
             if self.args.always_clip:
                 pred = torch.clamp(pred, min=0, max=1-self.args.min_depth/self.args.max_depth)
                                                      
@@ -398,7 +360,13 @@ class NLSPNModel(nn.Module):
         
         # output
         pred = self.args.min_depth / (pred + self.args.min_depth / self.args.max_depth)
+        
+        if self.args.preserve_input:
+            mask_fix = torch.sum((dep >= self.args.min_depth) & (dep <= self.args.max_depth), dim=1, keepdim=True).detach()
+            mask_fix = (mask_fix > 0.0).type_as(dep)
+            pred = (1.0 - mask_fix) * pred + mask_fix * dep
         pred = torch.clamp(pred, min=self.args.min_depth, max=self.args.max_depth)
+        
         output = {'pred': pred}
 
         return output
