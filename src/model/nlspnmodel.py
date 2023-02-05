@@ -52,32 +52,44 @@ class NLSPNModel(nn.Module):
         
         # 1/4
         self.enc24 = backbone.layer3
+        
+        # 1/8
+        self.enc48 = backbone.layer4
         del backbone
 
-        # 1/8
-        self.enc48 = conv_bn_relu(256, 256, kernel=3, stride=2)
+        # 1/16
+        self.enc816 = conv_bn_relu(512, 512, kernel=3, stride=2)
         
         # Decoder
+        # 1/16
+        self.dec1616_dep = conv_bn_relu(512, 256, kernel=3, stride=1)
+        if args.prop_time16 > 0:
+            self.dec1616_aff = nn.Sequential(conv_bn_relu(512, 256, kernel=3, stride=1, relu=False), nn.Tanh())
+            self.aff16_gen = conv_bn_relu(256, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
+            self.bias16_gen = nn.Sequential(conv_bn_relu(256, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
+            self.GRU16 = ConvGRU(hidden=256, input=256)
+        else:
+            self.dec1616_aff = conv_bn_relu(512, 256, kernel=3, stride=1)
+        
         # 1/8
-        self.dec88_dep = conv_bn_relu(256, 128, kernel=3, stride=1)
+        self.dec168_dep = convt_bn_relu(256+512, 128, kernel=3, stride=2, padding=1, output_padding=1)
         if args.prop_time8 > 0:
-            self.dec88_aff = nn.Sequential(conv_bn_relu(256, 128, kernel=3, stride=1, relu=False), nn.Tanh())
+            self.dec168_aff = nn.Sequential(convt_bn_relu(256+512, 128, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
             self.aff8_gen = conv_bn_relu(128, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
             self.bias8_gen = nn.Sequential(conv_bn_relu(128, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
             self.GRU8 = ConvGRU(hidden=128, input=128)
         else:
-            self.dec88_aff = conv_bn_relu(256, 128, kernel=3, stride=1)
-            # pass
+            self.dec168_aff = convt_bn_relu(256+512, 128, kernel=3, stride=2, padding=1, output_padding=1)
 
         # 1/4
-        self.dec84_dep = convt_bn_relu(128+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
+        self.dec84_dep = convt_bn_relu(128+512, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
         if args.prop_time4 > 0:
-            self.dec84_aff = nn.Sequential(convt_bn_relu(128+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
+            self.dec84_aff = nn.Sequential(convt_bn_relu(128+512, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
             self.aff4_gen = conv_bn_relu(args.num_feat4, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
             self.bias4_gen = nn.Sequential(conv_bn_relu(args.num_feat4, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
             self.GRU4 = ConvGRU(hidden=args.num_feat4, input=args.num_feat4)
         else:
-            self.dec84_aff = convt_bn_relu(128+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
+            self.dec84_aff = convt_bn_relu(128+512, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
             
         # 1/2        
         self.dec42_dep = convt_bn_relu(args.num_feat4+256, args.num_feat2, kernel=3, stride=2, padding=1, output_padding=1)
@@ -108,6 +120,8 @@ class NLSPNModel(nn.Module):
             self.aff_scale_const = nn.Parameter(self.num_neighbors * torch.ones(1))
             self.aff_scale_const.requires_grad = False
         elif self.args.affinity == 'TGASS':
+            if args.prop_time16 > 0:
+                self.aff_scale_const16 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
             if args.prop_time8 > 0:
                 self.aff_scale_const8 = nn.Parameter(self.args.affinity_gamma * self.num_neighbors * torch.ones(1))
             if args.prop_time4 > 0:
@@ -151,7 +165,9 @@ class NLSPNModel(nn.Module):
         if self.args.affinity == 'TC':
             aff = torch.tanh(aff) / self.aff_scale_const
         elif self.args.affinity == 'TGASS':
-            if level == 8:
+            if level == 16:
+                aff = torch.tanh(aff) / (self.aff_scale_const16 + 1e-8)
+            elif level == 8:
                 aff = torch.tanh(aff) / (self.aff_scale_const8 + 1e-8)
             elif level == 4:
                 aff = torch.tanh(aff) / (self.aff_scale_const4 + 1e-8)
@@ -250,14 +266,34 @@ class NLSPNModel(nn.Module):
         fe4 = self.enc24(fe2) # b*256*H/4*W/4
         
         # 1/8
-        fe8 = self.enc48(fe4) # b*256*H/8*W/8
+        fe8 = self.enc48(fe4) # b*512*H/8*W/8
+        
+        # 1/16
+        fe16 = self.enc816(fe8) # b*512*H/16*W/16
         
         # Decoding
+        # 1/16
+        fe16_dep = self.dec1616_dep(fe16) # b*256*H/16*W/16
+        fe16_aff = self.dec1616_aff(fe16) # b*256*H/16*W/16
+        
+        # time_start = time.time()
+        for _ in range(self.args.prop_time16):
+            aff16 = self.aff16_gen(fe16_aff)
+            aff16 = self._aff_norm_insert(aff16, 16)
+            
+            bias16 = self.bias16_gen(fe16_aff)
+            
+            fe16_dep = self._propagate_once(fe16_dep, None, aff16)
+            fe16_dep += bias16
+            fe16_dep = F.relu(fe16_dep)
+            
+            fe16_aff = self.GRU16(h=fe16_aff, x=fe16_dep)
+        # time_end=time.time()
+        # print('time cost for GRU8',1000*(time_end-time_start),'ms')
+        
         # 1/8
-        fe8_dep = self.dec88_dep(fe8) # b*128*H/8*W/8
-        fe8_aff = self.dec88_aff(fe8) # b*128*H/8*W/8
-        # fe8_dep = fe8[:, :128, :, :]
-        # fe8_aff = fe8[:, 128:, :, :]
+        fe8_dep = self.dec168_dep(torch.cat([fe16_dep, fe16], dim=1)) # b*(256+512)*H/16*W/16 -> b*128*H/8*W/8
+        fe8_aff = self.dec168_aff(torch.cat([fe16_aff, fe16], dim=1)) # b*(256+512)*H/16*W/16 -> b*128*H/8*W/8
         
         # time_start = time.time()
         for _ in range(self.args.prop_time8):
@@ -275,8 +311,8 @@ class NLSPNModel(nn.Module):
         # print('time cost for GRU8',1000*(time_end-time_start),'ms')
         
         # 1/4
-        fd4_dep = self.dec84_dep(torch.cat([fe8_dep, fe8], dim=1)) # b*(128+256)*H/8*W/8 -> b*128*H/4*W/4
-        fd4_aff = self.dec84_aff(torch.cat([fe8_aff, fe8], dim=1)) # b*(128+256)*H/8*W/8 -> b*128*H/4*W/4
+        fd4_dep = self.dec84_dep(torch.cat([fe8_dep, fe8], dim=1)) # b*(128+512)*H/8*W/8 -> b*128*H/4*W/4
+        fd4_aff = self.dec84_aff(torch.cat([fe8_aff, fe8], dim=1)) # b*(128+512)*H/8*W/8 -> b*128*H/4*W/4
         
         # time_start = time.time()
         for _ in range(self.args.prop_time4):

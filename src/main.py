@@ -376,6 +376,7 @@ def test(args):
 
     writer_test = summary(args.save_dir, 'test', args, None, metric.metric_name)
 
+    torch.set_grad_enabled(False)
     net.eval()
 
     num_sample = len(loader_test)*loader_test.batch_size

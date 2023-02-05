@@ -133,7 +133,6 @@ parser.add_argument('--num_sample',
                     default=0,
                     help='number of sparse samples')
 parser.add_argument('--test_crop',
-                    action='store_true',
                     # default=False,
                     default=True,
                     help='crop for test')
@@ -214,7 +213,7 @@ parser.add_argument('--affinity',
                     choices=('AS', 'ASS', 'TC', 'TGASS'))
 parser.add_argument('--lr',
                     type=float,
-                    default=5e-4)
+                    default=1e-3)
 parser.add_argument('--zero_init_aff',
                     default=True)
 parser.add_argument('--prop_conf',
@@ -234,7 +233,7 @@ parser.add_argument('--always_clip',
 
 parser.add_argument('--num_feat4',
                     type=int,
-                    default=96)
+                    default=128)
 parser.add_argument('--num_feat2',
                     type=int,
                     default=64)
@@ -242,6 +241,9 @@ parser.add_argument('--network',
                     type=str,
                     default='resnet34',
                     choices=('resnet18', 'resnet34'))
+parser.add_argument('--prop_time16',
+                    type=int,
+                    default=1)
 parser.add_argument('--prop_time8',
                     type=int,
                     default=1)
