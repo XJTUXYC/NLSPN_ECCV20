@@ -215,8 +215,7 @@ def train(gpu, args):
                 warm_up_cnt += 1
 
                 for param_group in optimizer.param_groups:
-                    lr_warm_up = param_group['initial_lr'] \
-                                 * warm_up_cnt / warm_up_max_cnt
+                    lr_warm_up = param_group['initial_lr'] * warm_up_cnt / warm_up_max_cnt
                     param_group['lr'] = lr_warm_up
 
             optimizer.zero_grad()
