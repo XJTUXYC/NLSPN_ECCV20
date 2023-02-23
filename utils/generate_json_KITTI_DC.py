@@ -29,8 +29,8 @@ parser.add_argument('--name_out', type=str, required=False,
                     default='kitti_dc.json', help="Output file name")
 parser.add_argument('--num_train', type=int, required=False,
                     default=int(1e10), help="Maximum number of train data")
-parser.add_argument('--num_val', type=int, required=False,
-                    default=int(1e10), help="Maximum number of val data")
+# parser.add_argument('--num_val', type=int, required=False,
+#                     default=int(1e10), help="Maximum number of val data")
 parser.add_argument('--num_test', type=int, required=False,
                     default=int(1e10), help="Maximum number of test data")
 parser.add_argument('--seed', type=int, required=False,
@@ -57,56 +57,56 @@ def check_file_existence(path_file):
 def generate_json():
     check_dir_existence(args.path_out)
 
-    # For train/val splits
+    # For train splits
     dict_json = {}
-    for split in ['train', 'val']:
-        path_base = args.path_root + '/' + split
+    split = 'train'
+    path_base = args.path_root + '/' + split
 
-        list_seq = os.listdir(path_base)
-        list_seq.sort()
+    list_seq = os.listdir(path_base)
+    list_seq.sort()
 
-        list_pairs = []
-        for seq in list_seq:
-            cnt_seq = 0
+    list_pairs = []
+    for seq in list_seq:
+        cnt_seq = 0
 
-            for cam in ['image_02', 'image_03']:
-                list_depth = os.listdir(
-                    path_base + '/' + seq
-                    + '/proj_depth/velodyne_raw/{}'.format(cam))
-                list_depth.sort()
+        for cam in ['image_02', 'image_03']:
+            list_depth = os.listdir(
+                path_base + '/' + seq
+                + '/proj_depth/velodyne_raw/{}'.format(cam))
+            list_depth.sort()
 
-                for name in list_depth:
-                    path_rgb = split + '/' + seq + '/' + cam + '/data/' + name
-                    path_depth = split + '/' + seq \
-                                 + '/proj_depth/velodyne_raw/' + cam + '/' \
-                                 + name
-                    path_gt = split + '/' + seq + '/proj_depth/groundtruth/' \
-                              + cam + '/' + name
-                    path_calib = split + '/' + seq + '/calib_cam_to_cam.txt'
+            for name in list_depth:
+                path_rgb = split + '/' + seq + '/' + cam + '/data/' + name
+                path_depth = split + '/' + seq \
+                                + '/proj_depth/velodyne_raw/' + cam + '/' \
+                                + name
+                path_gt = split + '/' + seq + '/proj_depth/groundtruth/' \
+                            + cam + '/' + name
+                path_calib = split + '/' + seq + '/calib_cam_to_cam.txt'
 
-                    dict_sample = {
-                        'rgb': path_rgb,
-                        'depth': path_depth,
-                        'gt': path_gt,
-                        'K': path_calib
-                    }
+                dict_sample = {
+                    'rgb': path_rgb,
+                    'depth': path_depth,
+                    'gt': path_gt,
+                    'K': path_calib
+                }
 
-                    flag_valid = True
-                    for val in dict_sample.values():
-                        flag_valid &= os.path.exists(args.path_root + '/' + val)
-                        if not flag_valid:
-                            break
-
+                flag_valid = True
+                for val in dict_sample.values():
+                    flag_valid &= os.path.exists(args.path_root + '/' + val)
                     if not flag_valid:
-                        continue
+                        break
 
-                    list_pairs.append(dict_sample)
-                    cnt_seq += 1
+                if not flag_valid:
+                    continue
 
-            print("{} : {} samples".format(seq, cnt_seq))
+                list_pairs.append(dict_sample)
+                cnt_seq += 1
 
-        dict_json[split] = list_pairs
-        print("{} split : Total {} samples".format(split, len(list_pairs)))
+        print("{} : {} samples".format(seq, cnt_seq))
+
+    dict_json[split] = list_pairs
+    print("{} split : Total {} samples".format(split, len(list_pairs)))
 
     # For test split
     split = 'test'
@@ -153,7 +153,8 @@ def generate_json():
     random.shuffle(dict_json['train'])
 
     # Cut if maximum is set
-    for s in [('train', args.num_train), ('val', args.num_val),
+    for s in [('train', args.num_train),
+            #   ('val', args.num_val),
               ('test', args.num_test)]:
         if len(dict_json[s[0]]) > s[1]:
             # Do shuffle

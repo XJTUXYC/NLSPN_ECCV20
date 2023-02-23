@@ -89,12 +89,12 @@ def train(gpu, args):
     data = get_data(args)
 
     data_train = data(args, 'train')
-    data_val = data(args, 'val')
+    # data_val = data(args, 'val')
 
     sampler_train = DistributedSampler(
         data_train, num_replicas=args.num_gpus, rank=gpu)
-    sampler_val = DistributedSampler(
-        data_val, num_replicas=args.num_gpus, rank=gpu)
+    # sampler_val = DistributedSampler(
+    #     data_val, num_replicas=args.num_gpus, rank=gpu)
 
     batch_size = args.batch_size // args.num_gpus
 
@@ -102,16 +102,17 @@ def train(gpu, args):
         dataset=data_train, batch_size=batch_size, shuffle=False,
         num_workers=args.num_threads, pin_memory=True, sampler=sampler_train,
         drop_last=True)
-    loader_val = DataLoader(
-        dataset=data_val, batch_size=1, shuffle=False,
-        num_workers=args.num_threads, pin_memory=True, sampler=sampler_val,
-        drop_last=False)
+    # loader_val = DataLoader(
+    #     dataset=data_val, batch_size=1, shuffle=False,
+    #     num_workers=args.num_threads, pin_memory=True, sampler=sampler_val,
+    #     drop_last=False)
 
     # Network
     model = get_model(args)
     net = model(args)
     net.cuda(gpu)
-    print(sum(param.numel() for param in net.parameters()))
+    if gpu == 0:
+        print(sum(param.numel() for param in net.parameters()))
 
     if gpu == 0:
         if args.pretrain is not None:
@@ -178,6 +179,10 @@ def train(gpu, args):
     if args.warm_up:
         warm_up_cnt = 0.0
         warm_up_max_cnt = len(loader_train)+1.0
+        
+    if args.cool_down:
+        cool_down_cnt = len(loader_train)+1.0
+        cool_down_max_cnt = len(loader_train)+1.0
     
     for epoch in range(1, args.epochs+1):
         # Train
@@ -215,9 +220,15 @@ def train(gpu, args):
                 warm_up_cnt += 1
 
                 for param_group in optimizer.param_groups:
-                    lr_warm_up = param_group['initial_lr'] \
-                                 * warm_up_cnt / warm_up_max_cnt
+                    lr_warm_up = param_group['initial_lr'] * warm_up_cnt / warm_up_max_cnt
                     param_group['lr'] = lr_warm_up
+                    
+            if epoch == args.epochs and args.cool_down:
+                cool_down_cnt -= 1
+
+                for param_group in optimizer.param_groups:
+                    lr_cool_down = args.lr * utility.convert_str_to_num(args.gamma, 'float')[-1] * cool_down_cnt / cool_down_max_cnt
+                    param_group['lr'] = lr_cool_down
 
             optimizer.zero_grad()
 
@@ -249,8 +260,13 @@ def train(gpu, args):
                     list_lr = []
                     for g in optimizer.param_groups:
                         list_lr.append(round(g['lr'], 6))
-                    error_str = '{} | Lr Warm Up : {}'.format(error_str,
-                                                              list_lr)
+                    error_str = '{} | Lr Warm Up : {}'.format(error_str, list_lr)
+                    
+                if epoch == args.epochs and args.cool_down:
+                    list_lr = []
+                    for g in optimizer.param_groups:
+                        list_lr.append(round(g['lr'], 6))
+                    error_str = '{} | Lr Cool Down : {}'.format(error_str, list_lr)
 
                 pbar.set_description(error_str)
                 pbar.update(loader_train.batch_size * args.num_gpus)
@@ -279,55 +295,55 @@ def train(gpu, args):
                 
             torch.save(state, '{}/{:03d}.pt'.format(args.save_dir, epoch))
 
-        # Val
-        torch.set_grad_enabled(False)
-        net.eval()
+        # # Val
+        # torch.set_grad_enabled(False)
+        # net.eval()
 
-        num_sample = len(loader_val) * loader_val.batch_size * args.num_gpus
+        # num_sample = len(loader_val) * loader_val.batch_size * args.num_gpus
 
-        if gpu == 0:
-            pbar = tqdm(total=num_sample)
-            log_cnt = 0.0
-            log_loss = 0.0
+        # if gpu == 0:
+        #     pbar = tqdm(total=num_sample)
+        #     log_cnt = 0.0
+        #     log_loss = 0.0
 
-        for batch, sample in enumerate(loader_val):
-            if args.test_pipeline:
-                if batch == 1:
-                    break
+        # for batch, sample in enumerate(loader_val):
+        #     if args.test_pipeline:
+        #         if batch == 1:
+        #             break
             
-            sample = {key: val.cuda(gpu) for key, val in sample.items()
-                      if val is not None}
+        #     sample = {key: val.cuda(gpu) for key, val in sample.items()
+        #               if val is not None}
 
-            output = net(sample)
+        #     output = net(sample)
 
-            loss_sum, loss_val = loss(sample, output)
+        #     loss_sum, loss_val = loss(sample, output)
 
-            # Divide by batch size
-            loss_sum = loss_sum / loader_val.batch_size
-            loss_val = loss_val / loader_val.batch_size
+        #     # Divide by batch size
+        #     loss_sum = loss_sum / loader_val.batch_size
+        #     loss_val = loss_val / loader_val.batch_size
 
-            if gpu == 0:
-                metric_val = metric.evaluate(sample, output, 'train')
-                writer_val.add(loss_val, metric_val)
+        #     if gpu == 0:
+        #         metric_val = metric.evaluate(sample, output, 'train')
+        #         writer_val.add(loss_val, metric_val)
 
-                log_cnt += 1
-                log_loss += loss_sum.item()
+        #         log_cnt += 1
+        #         log_loss += loss_sum.item()
 
-                current_time = time.strftime('%y%m%d@%H:%M:%S')
-                error_str = '{:<10s}| {} | Loss = {:.4f}'.format(
-                    'Val', current_time, log_loss / log_cnt)
-                pbar.set_description(error_str)
-                pbar.update(loader_val.batch_size * args.num_gpus)
+        #         current_time = time.strftime('%y%m%d@%H:%M:%S')
+        #         error_str = '{:<10s}| {} | Loss = {:.4f}'.format(
+        #             'Val', current_time, log_loss / log_cnt)
+        #         pbar.set_description(error_str)
+        #         pbar.update(loader_val.batch_size * args.num_gpus)
 
-        if gpu == 0:
-            pbar.close()
+        # if gpu == 0:
+        #     pbar.close()
 
-            writer_val.update(epoch, sample, output)
-            print('')
+        #     writer_val.update(epoch, sample, output)
+        #     print('')
 
-            writer_val.save(epoch, batch, sample, output)
+        #     writer_val.save(epoch, batch, sample, output)
 
-        torch.set_grad_enabled(True)
+        # torch.set_grad_enabled(True)
 
         scheduler.step()
 
@@ -376,6 +392,7 @@ def test(args):
 
     writer_test = summary(args.save_dir, 'test', args, None, metric.metric_name)
 
+    torch.set_grad_enabled(False)
     net.eval()
 
     num_sample = len(loader_test)*loader_test.batch_size

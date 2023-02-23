@@ -19,9 +19,8 @@
                 "--batch_size", "1", 
                 "--save", "test",
                 "--test_pipeline",
-                // "--pretrain", "${workspaceFolder}/experiments/230117_231922_KITTI_1216_4_2_1119/020.pt",
+                // "--pretrain", "${workspaceFolder}/experiments/230212_212215_KITTI_4_2_1113_bias/020.pt",
                 // "--test_only",
-                // "--resume"
             ]
         },
         {
@@ -33,9 +32,9 @@
             "justMyCode": true,
             "cwd": "${workspaceFolder}/utils",
             "args": [
-                "--path_root", "~/datasets/kitti_DC_nlspn",
-                "--name_out", "kitti_dc_4.json",
-                "--num_train", "21474"
+                "--path_root", "/data3/XYC/datasets/KITTI",
+                "--name_out", "kitti_dc_all.json",
+                // "--num_train", "21474",
             ]
         },
         {

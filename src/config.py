@@ -27,14 +27,14 @@ parser.add_argument('--dir_data',
                     help='path to dataset')
 parser.add_argument('--data_name',
                     type=str,
-                    # default='NYU',
-                    default='KITTIDC',
+                    default='NYU',
+                    # default='KITTIDC',
                     choices=('NYU', 'KITTIDC'),
                     help='dataset name')
 parser.add_argument('--top_crop',
                     type=int,
-                    # default=0,
-                    default=100,
+                    default=0,
+                    # default=100,
                     help='top crop size for KITTI dataset')
 
 
@@ -111,13 +111,13 @@ parser.add_argument('--batch_size',
                     help='input batch size for training')
 parser.add_argument('--max_depth',
                     type=float,
-                    # default=10.0,
-                    default=90.0,
+                    default=10.0,
+                    # default=90.0,
                     help='maximum depth')
 parser.add_argument('--min_depth',
                     type=float,
-                    # default=0.1,
-                    default=1.5,
+                    default=0.1,
+                    # default=1.5,
                     help='minimum depth (!=0)')
 parser.add_argument('--augment',
                     type=bool,
@@ -129,13 +129,13 @@ parser.add_argument('--no_augment',
                     help='no augmentation')
 parser.add_argument('--num_sample',
                     type=int,
-                    # default=500,
-                    default=0,
+                    default=500,
+                    # default=0,
                     help='number of sparse samples')
 parser.add_argument('--test_crop',
                     action='store_true',
-                    # default=False,
-                    default=True,
+                    default=False,
+                    # default=True,
                     help='crop for test')
 parser.add_argument('--test_pipeline',
                     action='store_true',
@@ -180,13 +180,11 @@ parser.add_argument('--weight_decay',
                     default=0.0,
                     help='weight decay')
 parser.add_argument('--warm_up',
-                    action='store_true',
                     default=True,
                     help='do lr warm up during the 1st epoch')
-parser.add_argument('--no_warm_up',
-                    action='store_false',
-                    dest='warm_up',
-                    help='no lr warm up')
+parser.add_argument('--cool_down',
+                    default=False,
+                    help='do lr cool down during the final epoch')
 
 # Logs
 parser.add_argument('--save',
@@ -214,7 +212,7 @@ parser.add_argument('--affinity',
                     choices=('AS', 'ASS', 'TC', 'TGASS'))
 parser.add_argument('--lr',
                     type=float,
-                    default=5e-4)
+                    default=1e-3)
 parser.add_argument('--zero_init_aff',
                     default=True)
 parser.add_argument('--prop_conf',
@@ -223,6 +221,9 @@ parser.add_argument('--from_scratch',
                     default=False)
 parser.add_argument('--use_S2D',
                     default=True)
+parser.add_argument('--use_bias',
+                    type=bool,
+                    default=False)
 parser.add_argument('--preserve_input',
                     default=False,
                     # default=True
@@ -232,6 +233,9 @@ parser.add_argument('--always_clip',
                     # default=True
                     )
 
+parser.add_argument('--num_feat8',
+                    type=int,
+                    default=128)
 parser.add_argument('--num_feat4',
                     type=int,
                     default=96)
@@ -257,20 +261,21 @@ parser.add_argument('--prop_time1',
 
 parser.add_argument('--patch_height',
                     type=int,
-                    # default=228,
-                    default=240,
+                    default=228,
+                    # default=240,
                     )
 parser.add_argument('--patch_width',
                     type=int,
-                    # default=304,
-                    default=1216,
+                    default=304,
+                    # default=1216,
                     # default=608,
                     )
 parser.add_argument('--split_json',
                     type=str,
-                    # default='../data_json/nyu.json',
+                    default='../data_json/nyu.json',
                     # default='../data_json/kitti_dc_4.json',
-                    default='../data_json/kitti_dc.json'
+                    # default='../data_json/kitti_dc.json'
+                    # default='../data_json/kitti_dc_all.json'
                     )
 
 args = parser.parse_args()
