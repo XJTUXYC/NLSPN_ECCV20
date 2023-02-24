@@ -59,23 +59,27 @@ class NLSPNModel(nn.Module):
         
         # Decoder
         # 1/8
-        self.dec88_dep = conv_bn_relu(256, args.num_feat8, kernel=3, stride=1)
+        if args.dec88:
+            self.dec88_dep = conv_bn_relu(256, args.num_feat8, kernel=3, stride=1)
         if args.prop_time8 > 0:
-            self.dec88_aff = nn.Sequential(conv_bn_relu(256, args.num_feat8, kernel=3, stride=1, relu=False), nn.Tanh())
+            if args.dec88:
+                self.dec88_aff = nn.Sequential(conv_bn_relu(256, args.num_feat8, kernel=3, stride=1, relu=False), nn.Tanh())
             self.aff8_gen = conv_bn_relu(args.num_feat8, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
-            self.GRU8 = ConvGRU(hidden=args.num_feat8, input=args.num_feat8)
+            if args.use_GRU:
+                self.GRU8 = ConvGRU(hidden=args.num_feat8, input=args.num_feat8)
             if args.use_bias:
                 self.bias8_gen = nn.Sequential(conv_bn_relu(args.num_feat8, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
         else:
-            self.dec88_aff = conv_bn_relu(256, args.num_feat8, kernel=3, stride=1)
-            # pass
+            if args.dec88:
+                self.dec88_aff = conv_bn_relu(256, args.num_feat8, kernel=3, stride=1)
 
         # 1/4
         self.dec84_dep = convt_bn_relu(args.num_feat8+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1)
         if args.prop_time4 > 0:
             self.dec84_aff = nn.Sequential(convt_bn_relu(args.num_feat8+256, args.num_feat4, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
             self.aff4_gen = conv_bn_relu(args.num_feat4, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
-            self.GRU4 = ConvGRU(hidden=args.num_feat4, input=args.num_feat4)
+            if args.use_GRU:
+                self.GRU4 = ConvGRU(hidden=args.num_feat4, input=args.num_feat4)
             if args.use_bias:
                 self.bias4_gen = nn.Sequential(conv_bn_relu(args.num_feat4, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
         else:
@@ -86,7 +90,8 @@ class NLSPNModel(nn.Module):
         if args.prop_time2 > 0:
             self.dec42_aff = nn.Sequential(convt_bn_relu(args.num_feat4+256, args.num_feat2, kernel=3, stride=2, padding=1, output_padding=1, relu=False), nn.Tanh())
             self.aff2_gen = conv_bn_relu(args.num_feat2, self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
-            self.GRU2 = ConvGRU(hidden=args.num_feat2, input=args.num_feat2)
+            if args.use_GRU:
+                self.GRU2 = ConvGRU(hidden=args.num_feat2, input=args.num_feat2)
             if args.use_bias:
                 self.bias2_gen = nn.Sequential(conv_bn_relu(args.num_feat2, 1, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff), nn.Tanh())
         else:
@@ -104,7 +109,8 @@ class NLSPNModel(nn.Module):
         self.dec11_aff = conv_bn_relu(64+64, 64, kernel=3, stride=1)
         self.dec11_aff_off = conv_bn_relu(64+64, 3*self.num_neighbors, kernel=3, stride=1, bn=False, relu=False, zero_init=self.args.zero_init_aff)
         
-        self.GRU1 = ConvGRU(hidden=self.num_neighbors, input=1, zero_init=self.args.zero_init_aff, tanh=False)
+        if args.use_GRU:
+            self.GRU1 = ConvGRU(hidden=self.num_neighbors, input=1, zero_init=self.args.zero_init_aff, tanh=False)
 
         # aff_scale_const
         if self.args.affinity == 'TC':
@@ -257,10 +263,12 @@ class NLSPNModel(nn.Module):
         
         # Decoding
         # 1/8
-        fd8_dep = self.dec88_dep(fe8) # b*128*H/8*W/8
-        fd8_aff = self.dec88_aff(fe8) # b*128*H/8*W/8
-        # fe8_dep = fe8[:, :128, :, :]
-        # fe8_aff = fe8[:, 128:, :, :]
+        if self.args.dec88:
+            fd8_dep = self.dec88_dep(fe8) # b*128*H/8*W/8
+            fd8_aff = self.dec88_aff(fe8) # b*128*H/8*W/8
+        else:
+            fd8_dep = fe8[:, :128, :, :]
+            fd8_aff = fe8[:, 128:, :, :]
         
         # time_start = time.time()
         for _ in range(self.args.prop_time8):
@@ -275,7 +283,8 @@ class NLSPNModel(nn.Module):
             
             fd8_dep = F.relu(fd8_dep, True)
             
-            fd8_aff = self.GRU8(h=fd8_aff, x=fd8_dep)
+            if self.args.use_GRU:
+                fd8_aff = self.GRU8(h=fd8_aff, x=fd8_dep)
         # time_end=time.time()
         # print('time cost for GRU8',1000*(time_end-time_start),'ms')
         
@@ -296,7 +305,8 @@ class NLSPNModel(nn.Module):
             
             fd4_dep = F.relu(fd4_dep, True)
             
-            fd4_aff = self.GRU4(h=fd4_aff, x=fd4_dep)
+            if self.args.use_GRU:
+                fd4_aff = self.GRU4(h=fd4_aff, x=fd4_dep)
         # time_end=time.time()
         # print('time cost for GRU4',1000*(time_end-time_start),'ms')
         
@@ -317,7 +327,8 @@ class NLSPNModel(nn.Module):
             
             fd2_dep = F.relu(fd2_dep, True)
             
-            fd2_aff = self.GRU2(h=fd2_aff, x=fd2_dep)
+            if self.args.use_GRU:
+                fd2_aff = self.GRU2(h=fd2_aff, x=fd2_dep)
         # time_end=time.time()
         # print('time cost for GRU2',1000*(time_end-time_start),'ms')
         
@@ -329,11 +340,18 @@ class NLSPNModel(nn.Module):
         fd1_pred_conf = self.dec11_dep(concat(fd1_dep, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
         pred = self.dec11_pred(concat(fd1_pred_conf, fe1)) # b*(64+64)*H*W -> b*1*H*W
         
+        if self.args.preserve_input:
+            mask_fix = torch.sum((dep >= self.args.min_depth) & (dep <= self.args.max_depth), dim=1, keepdim=True).detach()
+            mask_fix = (mask_fix > 0.0).type_as(dep)
+            pred = (1.0 - mask_fix) * pred + mask_fix * (self.args.min_depth / (dep + 1e-8) - self.args.min_depth / self.args.max_depth)
+        
         if self.args.always_clip:
             pred = torch.clamp(pred, min=0, max=1-self.args.min_depth/self.args.max_depth)
             
         if self.args.prop_conf:
             conf = self.dec11_conf(concat(fd1_pred_conf, fe1)) # b*(64+64)*H*W -> b*1*H*W
+            if self.args.preserve_input:
+                conf = (1.0 - mask_fix) * conf + mask_fix
         
         # aff_off
         fd1_aff_off = self.dec11_aff(concat(fd1_aff, fe1_mix)) # b*(64+64)*H*W -> b*64*H*W
@@ -351,24 +369,23 @@ class NLSPNModel(nn.Module):
             else:
                 pred = self._propagate_once(pred, off, aff)
 
+            if self.args.preserve_input:
+                pred = (1.0 - mask_fix) * pred + mask_fix * (self.args.min_depth / (dep + 1e-8) - self.args.min_depth / self.args.max_depth)
+            
             if self.args.always_clip:
                 pred = torch.clamp(pred, min=0, max=1-self.args.min_depth/self.args.max_depth)
-                                                     
-            if k < self.args.prop_time1 - 1:
-                aff = self._aff_pop(aff) # b*8*H*W
-                aff = self.GRU1(h=aff, x=pred) # b*8*H*W
-                aff = self._aff_norm_insert(aff, 1) # b*9*H*W
+            
+            if self.args.use_GRU:                              
+                if k < self.args.prop_time1 - 1:
+                    aff = self._aff_pop(aff) # b*8*H*W
+                    aff = self.GRU1(h=aff, x=pred) # b*8*H*W
+                    aff = self._aff_norm_insert(aff, 1) # b*9*H*W
         # time_end=time.time()
         # print('time cost for GRU1',1000*(time_end-time_start),'ms')
         
         # output
         pred = self.args.min_depth / (pred + self.args.min_depth / self.args.max_depth)
         # pred = pred * self.args.max_depth
-        
-        if self.args.preserve_input:
-            mask_fix = torch.sum((dep >= self.args.min_depth) & (dep <= self.args.max_depth), dim=1, keepdim=True).detach()
-            mask_fix = (mask_fix > 0.0).type_as(dep)
-            pred = (1.0 - mask_fix) * pred + mask_fix * dep
             
         pred = torch.clamp(pred, min=self.args.min_depth, max=self.args.max_depth)
         
