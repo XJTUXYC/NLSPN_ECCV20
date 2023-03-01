@@ -134,7 +134,6 @@ parser.add_argument('--num_sample',
                     default=0,
                     help='number of sparse samples')
 parser.add_argument('--test_crop',
-                    action='store_true',
                     # default=False,
                     default=True,
                     help='crop for test')
@@ -225,7 +224,9 @@ parser.add_argument('--use_S2D',
 parser.add_argument('--use_GRU',
                     default=True,)
 parser.add_argument('--val',
-                    default=False,)
+                    default=False,
+                    # default=True,
+                    )
 parser.add_argument('--use_bias',
                     default=False)
 parser.add_argument('--preserve_input',
@@ -282,8 +283,8 @@ parser.add_argument('--split_json',
                     type=str,
                     # default='../data_json/nyu.json',
                     # default='../data_json/kitti_dc_4.json',
-                    # default='../data_json/kitti_dc.json'
-                    default='../data_json/kitti_dc_all.json',
+                    default='../data_json/kitti_dc.json'
+                    # default='../data_json/kitti_dc_all.json',
                     # default='../data_json/kitti_dc_test.json'
                     )
 
