@@ -18,12 +18,11 @@
                 "--epochs", "1",
                 "--batch_size", "1", 
                 "--save", "test",
-                // "--test_pipeline",
+                "--test_pipeline",
                 // "--pretrain", "${workspaceFolder}/experiments/230224_104139_KITTI_16_8_1113/020.pt",
                 // "--test_only",
                 // "--save_image",
                 // "--save_result_only",
-                // "--test_crop", "False",
                 // "--top_crop", "0",
             ]
         },

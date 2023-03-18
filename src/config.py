@@ -46,7 +46,7 @@ parser.add_argument('--seed',
                     help='random seed point')
 parser.add_argument('--gpus',
                     type=str,
-                    default="0,1,2,3",
+                    default="3,5",
                     help='visible GPUs')
 parser.add_argument('--port',
                     type=str,
@@ -108,7 +108,7 @@ parser.add_argument('--epochs',
                     help='number of epochs to train')
 parser.add_argument('--batch_size',
                     type=int,
-                    default=12,
+                    default=4,
                     help='input batch size for training')
 parser.add_argument('--max_depth',
                     type=float,
@@ -212,7 +212,7 @@ parser.add_argument('--affinity',
                     choices=('AS', 'ASS', 'TC', 'TGASS'))
 parser.add_argument('--lr',
                     type=float,
-                    default=1e-3)
+                    default=5e-4)
 parser.add_argument('--zero_init_aff',
                     default=True)
 parser.add_argument('--prop_conf',
@@ -224,8 +224,8 @@ parser.add_argument('--use_S2D',
 parser.add_argument('--use_GRU',
                     default=True,)
 parser.add_argument('--val',
-                    default=False,
-                    # default=True,
+                    # default=False,
+                    default=True,
                     )
 parser.add_argument('--use_bias',
                     default=False)
