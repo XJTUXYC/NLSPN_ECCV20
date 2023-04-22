@@ -222,7 +222,9 @@ parser.add_argument('--from_scratch',
 parser.add_argument('--use_S2D',
                     default=True)
 parser.add_argument('--use_GRU',
-                    default=True,)
+                    default=True,
+                    # default=False,
+                    )
 parser.add_argument('--val',
                     # default=False,
                     default=True,
