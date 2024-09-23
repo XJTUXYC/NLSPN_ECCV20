@@ -26,6 +26,7 @@ class NLSPNModel(nn.Module):
 
         self.args = args
         print(111)
+        print(111)
         assert (self.args.prop_kernel % 2) == 1, \
             'only odd kernel is supported but k_f = {}'.format(self.args.prop_kernel)
 
